@@ -24,6 +24,9 @@ Makefile
 .vscode/
 .idea/
 
+# Ignora file generati come output
+output
+
 # Ignora i file di sistema (Mac, Windows, etc.)
 .DS_Store
 Thumbs.db
