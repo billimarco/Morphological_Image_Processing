@@ -8,13 +8,18 @@
 #include <sys/stat.h>  // Per creare cartelle
 #include <sys/types.h>
 #ifdef _WIN32
-    #include <direct.h>  // Windows: per _mkdir()
-#endif 
+    #include <direct.h>
+    #define MKDIR(path) _mkdir(path)
+#else
+    #include <unistd.h>
+    #define MKDIR(path) mkdir(path, 0777)
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include <filesystem>
 
 // change OMP_NUM_THREADS environment variable to run with 1 to X threads...
 // check configuration in drop down menu
@@ -55,17 +60,70 @@ struct STBImage {
     }
 };
 
-// Funzione per creare la cartella "images"
-void createDirectory(const std::string &dir) {
-    struct stat info;
+struct StructuringElement {
+    std::vector<std::vector<int>> kernel;
+    int width, height;
+    int anchor_x, anchor_y; 
+
+    StructuringElement(std::vector<std::vector<int>> k): 
+        kernel(std::move(k)),
+        width(kernel.empty() ? 0 : kernel[0].size()), 
+        height(kernel.size()),
+        anchor_x(width / 2), 
+        anchor_y(height / 2) {}
+
+    // Funzione per stampare il kernel
+    void print() const {
+        std::cout << "Elemento Strutturante:" << std::endl;
+        for (const auto& row : kernel) {
+            for (int val : row) {
+                std::cout << val << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    void saveImage(const std::string& filename) const {
+        int rows = kernel.size();
+        int cols = kernel[0].size();
+        std::vector<unsigned char> image(rows * cols, 0); // Inizializza tutta l'immagine a nero (0)
+
+        // Riempie l'immagine con i valori del kernel
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                image[i * cols + j] = kernel[i][j] ? 255 : 0; // 255 = bianco, 0 = nero
+            }
+        }
+
+        // Salva l'immagine in formato JPG
+        stbi_write_jpg(filename.c_str(), cols, rows, 1, image.data(), 100);
+
+        //std::cout << "Immagine salvata come: " << filename << std::endl;
+    }
+};
+
+// Funzione per creare un cammino di cartelle
+void createPath(const std::string &path) {
+    std::istringstream ss(path);
+    std::string partialPath;
+    std::vector<std::string> directories;
     
-    // Controlla se la cartella esiste già
-    if (stat(dir.c_str(), &info) != 0) { 
-        #ifdef _WIN32
-            _mkdir(dir.c_str()); // Windows
-        #else
-            mkdir(dir.c_str(), 0777); // Linux/macOS
-        #endif
+    // Dividere il percorso nelle singole directory
+    while (std::getline(ss, partialPath, '/')) {
+        directories.push_back(partialPath);
+    }
+
+    std::string currentPath;
+    for (const auto &dir : directories) {
+        if (!currentPath.empty()) {
+            currentPath += "/";
+        }
+        currentPath += dir;
+
+        struct stat info;
+        if (stat(currentPath.c_str(), &info) != 0) { // Se la cartella non esiste
+            MKDIR(currentPath.c_str());
+        }
     }
 }
 
@@ -189,22 +247,131 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
         }
 
         // Salva l'immagine generata
-        std::string filename = "images/image_" + std::to_string(i) + ".jpg";
+        std::string filename = "images/basis/image_" + std::to_string(i) + ".jpg";
         img.saveImage(filename);
         //std::cout << "Immagine " << i << " salvata" << std::endl;
     }
 }
 
-int main(){
-    createDirectory("images");
+// Funzione per eseguire l'erosione
+STBImage erosion(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
 
-    int width = 256, height = 256, num_images = 50;
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (int i = 0; i < se.height; i++) {
+                for (int j = 0; j < se.width; j++) {
+                    int nx = x + j - se.anchor_x;
+                    int ny = y + i - se.anchor_y;
+
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                        }
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire la dilatazione
+STBImage dilation(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (int i = 0; i < se.height; i++) {
+                for (int j = 0; j < se.width; j++) {
+                    int nx = x + j - se.anchor_x;
+                    int ny = y + i - se.anchor_y;
+
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                        }
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire l'apertura (Erosione seguita da Dilatazione)
+STBImage opening(const STBImage& img, const StructuringElement& se) {
+    return dilation(erosion(img, se), se);
+}
+
+// Funzione per eseguire la chiusura (Dilatazione seguita da Erosione)
+STBImage closing(const STBImage& img, const StructuringElement& se) {
+    return erosion(dilation(img, se), se);
+}
+
+int main(){
+    createPath("images/basis");
+    createPath("images/erosion");
+    createPath("images/dilation");
+    createPath("images/opening");
+    createPath("images/closing");
+
+    int width = 200, height = 400, num_images = 50;
     
     generateBinaryImages(num_images, width, height);
-    std::cout << "Immagini generate con successo!" << std::endl;
+    std::cout << "Immagini " << width << "x" << height << " generate con successo!" << std::endl;
 
-    std::vector<STBImage> loadedImages = loadImages("images", 1, num_images);
+    std::vector<STBImage> loadedImages = loadImages("images/basis", 1, num_images);
     std::cout << "Totale immagini caricate: " << loadedImages.size() << std::endl;
+    /*
+    StructuringElement se({{0, 1, 0}, 
+                           {1, 1, 1}, 
+                           {0, 1, 0}});
+    */
+    
+    StructuringElement se({{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                           {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}});
+    se.print();
+    se.saveImage("se.jpg");
+
+    // Elaborazione di ogni immagine
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+
+        // Applicazione delle trasformazioni e salvataggio
+        STBImage eroded  = erosion(img, se);
+        eroded.saveImage("images/erosion/" + filename);
+
+        STBImage dilated = dilation(img, se);
+        dilated.saveImage("images/dilation/" + filename);
+
+        STBImage opened  = opening(img, se);
+        opened.saveImage("images/opening/" + filename);
+
+        STBImage closed  = closing(img, se);
+        closed.saveImage("images/closing/" + filename);
+    }
+
+    std::cout << "Tutte le immagini sono state processate e salvate!" << std::endl;
+
     // Libera memoria delle immagini caricate
     for (auto &img : loadedImages) {
         stbi_image_free(img.image_data);
