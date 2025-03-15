@@ -275,7 +275,7 @@ std::vector<std::vector<int>> generateCircularKernel(int radius) {
 
     for (int i = -radius; i <= radius; ++i) {
         for (int j = -radius; j <= radius; ++j) {
-            // Calcolare la distanza dal centro (0, 0)
+            // Calcolare la distanza dal centro (0, 0) con Teorema di Pitagora
             if (i * i + j * j <= radius * radius) {
                 kernel[i + radius][j + radius] = 1;
             }
@@ -285,14 +285,13 @@ std::vector<std::vector<int>> generateCircularKernel(int radius) {
 }
 
 // Funzione per generare un elemento strutturante quadrato
-std::vector<std::vector<int>> generateSquareKernel(int sideLength) {
-    int halfSide = sideLength / 2;
-    int size = sideLength;
-    std::vector<std::vector<int>> kernel(size, std::vector<int>(size, 0));
+std::vector<std::vector<int>> generateSquareKernel(int halfSideLength) {
+    int fullSide = 2 * halfSideLength + 1;
+    std::vector<std::vector<int>> kernel(fullSide, std::vector<int>(fullSide, 0));
 
-    for (int i = -halfSide; i <= halfSide; ++i) {
-        for (int j = -halfSide; j <= halfSide; ++j) {
-            kernel[i + halfSide][j + halfSide] = 1;
+    for (int i = -halfSideLength; i <= halfSideLength; ++i) {
+        for (int j = -halfSideLength; j <= halfSideLength; ++j) {
+            kernel[i + halfSideLength][j + halfSideLength] = 1;
         }
     }
     return kernel;
@@ -382,11 +381,11 @@ int main(){
 
     StructuringElement se;
     if(config["structuring_element"]["shape"] == "square"){
-        se.setKernel(generateSquareKernel(config["structuring_element"]["size"]));
+        se.setKernel(generateSquareKernel(config["structuring_element"]["radius"]));
         se.print();
         se.saveImage("se.jpg");
     } else if(config["structuring_element"]["shape"] == "circle"){
-        se.setKernel(generateCircularKernel(config["structuring_element"]["size"]));
+        se.setKernel(generateCircularKernel(config["structuring_element"]["radius"]));
         se.print();
         se.saveImage("se.jpg");
     } else {

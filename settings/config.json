@@ -6,6 +6,6 @@
     "num_images": 50,
     "structuring_element": {
         "shape": "circle",
-        "size": 5
+        "radius": 1
     }
 }
