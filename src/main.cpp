@@ -1,8 +1,10 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include <random>
 #include <ctime>
+#include <filesystem>
 #include <omp.h>
 
 #include <sys/stat.h>  // Per creare cartelle
@@ -16,11 +18,13 @@
 #endif
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include <stb/stb_image.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-#include <filesystem>
+#include <stb/stb_image_write.h>
 
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 // change OMP_NUM_THREADS environment variable to run with 1 to X threads...
 // check configuration in drop down menu
 // XXX check working directory so that ./images and ./output are valid !
@@ -71,6 +75,17 @@ struct StructuringElement {
         height(kernel.size()),
         anchor_x(width / 2), 
         anchor_y(height / 2) {}
+
+    StructuringElement() : width(0), height(0), anchor_x(0), anchor_y(0) {}
+
+    // Funzione per cambiare il kernel
+    void setKernel(std::vector<std::vector<int>> new_kernel) {
+        kernel = std::move(new_kernel);
+        width = kernel.empty() ? 0 : kernel[0].size();
+        height = kernel.size();
+        anchor_x = width / 2;
+        anchor_y = height / 2;
+    }
 
     // Funzione per stampare il kernel
     void print() const {
@@ -253,6 +268,36 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
     }
 }
 
+// Funzione per generare un elemento strutturante circolare
+std::vector<std::vector<int>> generateCircularKernel(int radius) {
+    int size = 2 * radius + 1;  // La dimensione della matrice che rappresenta il kernel
+    std::vector<std::vector<int>> kernel(size, std::vector<int>(size, 0));
+
+    for (int i = -radius; i <= radius; ++i) {
+        for (int j = -radius; j <= radius; ++j) {
+            // Calcolare la distanza dal centro (0, 0)
+            if (i * i + j * j <= radius * radius) {
+                kernel[i + radius][j + radius] = 1;
+            }
+        }
+    }
+    return kernel;
+}
+
+// Funzione per generare un elemento strutturante quadrato
+std::vector<std::vector<int>> generateSquareKernel(int sideLength) {
+    int halfSide = sideLength / 2;
+    int size = sideLength;
+    std::vector<std::vector<int>> kernel(size, std::vector<int>(size, 0));
+
+    for (int i = -halfSide; i <= halfSide; ++i) {
+        for (int j = -halfSide; j <= halfSide; ++j) {
+            kernel[i + halfSide][j + halfSide] = 1;
+        }
+    }
+    return kernel;
+}
+
 // Funzione per eseguire l'erosione
 STBImage erosion(const STBImage& img, const StructuringElement& se) {
     STBImage result;
@@ -324,19 +369,36 @@ int main(){
     createPath("images/opening");
     createPath("images/closing");
 
-    int width = 200, height = 400, num_images = 50;
+    std::ifstream conf_file("settings/config.json");
+    json config = json::parse(conf_file);
+
+    int width = config["image_size"]["width"], height = config["image_size"]["height"], num_images = config["num_images"];
     
     generateBinaryImages(num_images, width, height);
-    std::cout << "Immagini " << width << "x" << height << " generate con successo!" << std::endl;
+    std::cout << num_images <<" immagini " << width << "x" << height << " generate con successo!" << std::endl;
 
     std::vector<STBImage> loadedImages = loadImages("images/basis", 1, num_images);
     std::cout << "Totale immagini caricate: " << loadedImages.size() << std::endl;
+
+    StructuringElement se;
+    if(config["structuring_element"]["shape"] == "square"){
+        se.setKernel(generateSquareKernel(config["structuring_element"]["size"]));
+        se.print();
+        se.saveImage("se.jpg");
+    } else if(config["structuring_element"]["shape"] == "circle"){
+        se.setKernel(generateCircularKernel(config["structuring_element"]["size"]));
+        se.print();
+        se.saveImage("se.jpg");
+    } else {
+        std::cerr << "Forma dell'elemento strutturante non valida!" << std::endl;
+        return 1;
+    }
     /*
     StructuringElement se({{0, 1, 0}, 
                            {1, 1, 1}, 
                            {0, 1, 0}});
     */
-    
+    /*
     StructuringElement se({{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
                            {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, 
                            {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
@@ -350,6 +412,7 @@ int main(){
                            {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}});
     se.print();
     se.saveImage("se.jpg");
+    */
 
     // Elaborazione di ogni immagine
     for (auto &img : loadedImages) {

@@ -20,9 +20,6 @@ Makefile
 # Ignora file di log
 *.log
 
-# Ignora file di configurazione IDE (VSCode, Visual Studio, etc.)
-.vscode/
-.idea/
 
 # Ignora file generati come output
 output
