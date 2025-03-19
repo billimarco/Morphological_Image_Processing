@@ -4,6 +4,7 @@
 #include <string>
 #include <random>
 #include <ctime>
+#include <iomanip>
 #include <filesystem>
 #include <omp.h>
 
@@ -297,8 +298,13 @@ std::vector<std::vector<int>> generateSquareKernel(int halfSideLength) {
     return kernel;
 }
 
+
+
+
+// FUNZIONI OPERAZIONI MORFOLOGICHE IN MODO SEQUENZIALE
+
 // Funzione per eseguire l'erosione
-STBImage erosion(const STBImage& img, const StructuringElement& se) {
+STBImage erosion_V1(const STBImage& img, const StructuringElement& se) {
     STBImage result;
     result.initialize(img.width, img.height);
 
@@ -313,9 +319,11 @@ STBImage erosion(const STBImage& img, const StructuringElement& se) {
                     if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
                         if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
                             erode = true;
+                            break;
                         }
                     }
                 }
+                if (erode) break;
             }
             result.image_data[y * img.width + x] = erode ? 0 : 255;
         }
@@ -325,7 +333,7 @@ STBImage erosion(const STBImage& img, const StructuringElement& se) {
 }
 
 // Funzione per eseguire la dilatazione
-STBImage dilation(const STBImage& img, const StructuringElement& se) {
+STBImage dilation_V1(const STBImage& img, const StructuringElement& se) {
     STBImage result;
     result.initialize(img.width, img.height);
 
@@ -340,9 +348,11 @@ STBImage dilation(const STBImage& img, const StructuringElement& se) {
                     if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
                         if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
                             dilate = true;
+                            break;
                         }
                     }
                 }
+                if (dilate) break;
             }
             result.image_data[y * img.width + x] = dilate ? 255 : 0;
         }
@@ -352,16 +362,886 @@ STBImage dilation(const STBImage& img, const StructuringElement& se) {
 }
 
 // Funzione per eseguire l'apertura (Erosione seguita da Dilatazione)
-STBImage opening(const STBImage& img, const StructuringElement& se) {
-    return dilation(erosion(img, se), se);
+STBImage opening_V1(const STBImage& img, const StructuringElement& se) {
+    return dilation_V1(erosion_V1(img, se), se);
 }
 
 // Funzione per eseguire la chiusura (Dilatazione seguita da Erosione)
-STBImage closing(const STBImage& img, const StructuringElement& se) {
-    return erosion(dilation(img, se), se);
+STBImage closing_V1(const STBImage& img, const StructuringElement& se) {
+    return erosion_V1(dilation_V1(img, se), se);
+}
+
+// Funzione per eseguire l'erosione per un vettore di immagini
+std::unordered_map<std::string, STBImage> erosion_V1_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) { 
+        imgs_results[img.filename] = erosion_V1(img, se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la dilatazione per un vettore di immagini
+std::unordered_map<std::string, STBImage> dilation_V1_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = dilation_V1(img, se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'apertura per un vettore di immagini (Erosione seguita da Dilatazione)
+std::unordered_map<std::string, STBImage> opening_V1_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = dilation_V1(erosion_V1(img, se), se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura per un vettore di immagini (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V1_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = erosion_V1(dilation_V1(img, se), se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'erosione ottimizzata
+STBImage erosion_V2(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+    return result;
+}
+
+// Funzione per eseguire la dilatazione ottimizzata
+STBImage dilation_V2(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+    return result;
+}
+
+// Funzione per eseguire l'apertura ottimizzata (Erosione seguita da Dilatazione)
+STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    for (int y = 0; y < half_result.height; y++) {
+        for (int x = 0; x < half_result.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                    if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire la chiusura ottimizzata (Dilatazione seguita da Erosione)
+STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    for (int y = 0; y < half_result.height; y++) {
+        for (int x = 0; x < half_result.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                    if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire l'erosione ottimizzata per un vettore di immagini
+std::unordered_map<std::string, STBImage> erosion_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) { 
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la dilatazione ottimizzata per un vettore di immagini
+std::unordered_map<std::string, STBImage> dilation_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'apertura ottimizzata per un vettore di immagini (Erosione seguita da Dilatazione)
+std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+
+
+
+// FUNZIONI OPERAZIONI MORFOLOGICHE IN MODO PARALLELO TODO
+
+// Funzione per eseguire l'erosione in parallelo
+STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (int i = 0; i < se.height; i++) {
+                for (int j = 0; j < se.width; j++) {
+                    int nx = x + j - se.anchor_x;
+                    int ny = y + i - se.anchor_y;
+
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                if (erode) break;
+            }
+            result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire la dilatazione in parallelo
+STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (int i = 0; i < se.height; i++) {
+                for (int j = 0; j < se.width; j++) {
+                    int nx = x + j - se.anchor_x;
+                    int ny = y + i - se.anchor_y;
+
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                if (dilate) break;
+            }
+            result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire l'apertura in parallelo (Erosione seguita da Dilatazione)
+STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) {
+    return dilation_V1(erosion_V1(img, se), se);
+}
+
+// Funzione per eseguire la chiusura in parallelo (Dilatazione seguita da Erosione)
+STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) {
+    return erosion_V1(dilation_V1(img, se), se);
+}
+
+// Funzione per eseguire l'erosione per un vettore di immagini in parallelo
+std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) { 
+        imgs_results[img.filename] = erosion_V1(img, se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la dilatazione per un vettore di immagini in parallelo
+std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = dilation_V1(img, se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'apertura per un vettore di immagini in parallelo (Erosione seguita da Dilatazione)
+std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = dilation_V1(erosion_V1(img, se), se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura per un vettore di immagini in parallelo (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+    for (auto &img : imgs) {
+        imgs_results[img.filename] = erosion_V1(dilation_V1(img, se), se);
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'erosione ottimizzata in parallelo
+STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+    return result;
+}
+
+// Funzione per eseguire la dilatazione ottimizzata in parallelo
+STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage result;
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+    return result;
+}
+
+// Funzione per eseguire l'apertura ottimizzata in parallelo (Erosione seguita da Dilatazione)
+STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    for (int y = 0; y < half_result.height; y++) {
+        for (int x = 0; x < half_result.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                    if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire la chiusura ottimizzata in parallelo (Dilatazione seguita da Erosione)
+STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    for (int y = 0; y < half_result.height; y++) {
+        for (int x = 0; x < half_result.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                    if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire l'erosione ottimizzata per un vettore di immagini in parallelo
+std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) { 
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la dilatazione ottimizzata per un vettore di immagini in parallelo
+std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire l'apertura ottimizzata per un vettore di immagini in parallelo (Erosione seguita da Dilatazione)
+std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini in parallelo (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
 }
 
 int main(){
+#ifdef _OPENMP
+    std::cout << "_OPENMP defined" << std::endl;
+#endif
     createPath("images/basis");
     createPath("images/erosion");
     createPath("images/dilation");
@@ -413,29 +1293,705 @@ int main(){
     se.saveImage("se.jpg");
     */
 
-    // Elaborazione di ogni immagine
+    // lambda function to calculate the mean time
+    auto calculateMeanTime = [](const std::vector<double> &test_times, double &mean_time) {
+        double sum = std::accumulate(test_times.begin(), test_times.end(), 0.0);
+        mean_time = sum / test_times.size();
+    };
+
+    double start_time_all_images, end_time_all_images;
+    double start_time_one_image, end_time_one_image;
+
+    // SEQUENTIAL PART V1
+    std::vector<double> erosion_V1_test_times;
+    std::vector<double> dilation_V1_test_times;
+    std::vector<double> opening_V1_test_times;
+    std::vector<double> closing_V1_test_times;
+
+    std::cout << "\nSEQUENTIAL PART V1\n" << std::endl;
     for (auto &img : loadedImages) {
         // Estrazione del nome del file senza percorso
         std::string filename = std::filesystem::path(img.filename).filename().string();
 
         // Applicazione delle trasformazioni e salvataggio
-        STBImage eroded  = erosion(img, se);
+        start_time_one_image = omp_get_wtime();
+        STBImage eroded  = erosion_V1(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        erosion_V1_test_times.push_back(end_time_one_image - start_time_one_image);
         eroded.saveImage("images/erosion/" + filename);
+    }
 
-        STBImage dilated = dilation(img, se);
+    start_time_all_images = omp_get_wtime();
+    erosion_V1_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double erosion_V1_seq_mean;
+    double erosion_V1_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(erosion_V1_test_times, erosion_V1_seq_mean);
+    std::cout << "Mean sequential erosion_V1 execution time : " << erosion_V1_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential erosion_V1 execution time : " << erosion_V1_seq_total << " sec" << std::endl;
+
+    for (auto &img : loadedImages) { 
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage dilated = dilation_V1(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        dilation_V1_test_times.push_back(end_time_one_image - start_time_one_image);
         dilated.saveImage("images/dilation/" + filename);
+    }
 
-        STBImage opened  = opening(img, se);
+    start_time_all_images = omp_get_wtime();
+    dilation_V1_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double dilation_V1_seq_mean;
+    double dilation_V1_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(dilation_V1_test_times, dilation_V1_seq_mean);
+    std::cout << "Mean sequential dilation_V1 execution time : " << dilation_V1_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential dilation_V1 execution time : " << dilation_V1_seq_total << " sec" << std::endl;
+    
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage opened  = opening_V1(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        opening_V1_test_times.push_back(end_time_one_image - start_time_one_image);
         opened.saveImage("images/opening/" + filename);
+    }
 
-        STBImage closed  = closing(img, se);
+    start_time_all_images = omp_get_wtime();
+    opening_V1_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double opening_V1_seq_mean;
+    double opening_V1_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(opening_V1_test_times, opening_V1_seq_mean);
+    std::cout << "Mean sequential opening_V1 execution time : " << opening_V1_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential opening_V1 execution time : " << opening_V1_seq_total << " sec" << std::endl;
+    
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage closed  = closing_V1(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        closing_V1_test_times.push_back(end_time_one_image - start_time_one_image);
         closed.saveImage("images/closing/" + filename);
     }
 
-    std::cout << "Tutte le immagini sono state processate e salvate!" << std::endl;
+    start_time_all_images = omp_get_wtime();
+    closing_V1_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
 
+    double closing_V1_seq_mean;
+    double closing_V1_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(closing_V1_test_times, closing_V1_seq_mean);
+    std::cout << "Mean sequential closing_V1 execution time : " << closing_V1_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential closing_V1 execution time : " << closing_V1_seq_total << " sec" << std::endl;
+
+    // SEQUENTIAL PART V2
+    std::vector<double> erosion_V2_test_times;
+    std::vector<double> dilation_V2_test_times;
+    std::vector<double> opening_V2_test_times;
+    std::vector<double> closing_V2_test_times;
+
+    std::cout << "\nSEQUENTIAL PART V2\n" << std::endl;
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage eroded  = erosion_V2(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        erosion_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+        eroded.saveImage("images/erosion/" + filename);
+    }
+
+    start_time_all_images = omp_get_wtime();
+    erosion_V2_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double erosion_V2_seq_mean;
+    double erosion_V2_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(erosion_V2_test_times, erosion_V2_seq_mean);
+    std::cout << "Mean sequential erosion_V2 execution time : " << erosion_V2_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential erosion_V2 execution time : " << erosion_V2_seq_total << " sec" << std::endl;
+
+    for (auto &img : loadedImages) { 
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage dilated = dilation_V2(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        dilation_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+        dilated.saveImage("images/dilation/" + filename);
+    }
+
+    start_time_all_images = omp_get_wtime();
+    dilation_V2_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double dilation_V2_seq_mean;
+    double dilation_V2_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(dilation_V2_test_times, dilation_V2_seq_mean);
+    std::cout << "Mean sequential dilation_V2 execution time : " << dilation_V2_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential dilation_V2 execution time : " << dilation_V2_seq_total << " sec" << std::endl;
+    
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage opened  = opening_V2(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        opening_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+        opened.saveImage("images/opening/" + filename);
+    }
+
+    start_time_all_images = omp_get_wtime();
+    opening_V2_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double opening_V2_seq_mean;
+    double opening_V2_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(opening_V2_test_times, opening_V2_seq_mean);
+    std::cout << "Mean sequential opening_V2 execution time : " << opening_V2_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential opening_V2 execution time : " << opening_V2_seq_total << " sec" << std::endl;
+    
+    for (auto &img : loadedImages) {
+        // Estrazione del nome del file senza percorso
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        
+        // Applicazione delle trasformazioni e salvataggio
+        start_time_one_image = omp_get_wtime();
+        STBImage closed  = closing_V2(img, se);
+        end_time_one_image = omp_get_wtime();
+        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+        closing_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+        closed.saveImage("images/closing/" + filename);
+    }
+
+    start_time_all_images = omp_get_wtime();
+    closing_V2_imgvec(loadedImages, se);
+    end_time_all_images = omp_get_wtime();
+
+    double closing_V2_seq_mean;
+    double closing_V2_seq_total=end_time_all_images - start_time_all_images;
+    calculateMeanTime(closing_V2_test_times, closing_V2_seq_mean);
+    std::cout << "Mean sequential closing_V2 execution time : " << closing_V2_seq_mean << " sec" << std::endl;
+    std::cout << "Total sequential closing_V2 execution time : " << closing_V2_seq_total << " sec" << std::endl;
+    
+    
+    // PARALLEL PART
+    //const int test_thread_array [16] = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+    //std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10};
+
+    std::vector<double> erosion_V1_par_mean_vector;
+    std::vector<double> dilation_V1_par_mean_vector;
+    std::vector<double> opening_V1_par_mean_vector;
+    std::vector<double> closing_V1_par_mean_vector;
+    std::vector<double> erosion_V1_par_total_vector;
+    std::vector<double> dilation_V1_par_total_vector;
+    std::vector<double> opening_V1_par_total_vector;
+    std::vector<double> closing_V1_par_total_vector;
+
+    double erosion_V1_par_mean;
+    double dilation_V1_par_mean;
+    double opening_V1_par_mean;
+    double closing_V1_par_mean;
+    double erosion_V1_par_total;
+    double dilation_V1_par_total;
+    double opening_V1_par_total;
+    double closing_V1_par_total;
+
+    std::vector<double> erosion_V2_par_mean_vector;
+    std::vector<double> dilation_V2_par_mean_vector;
+    std::vector<double> opening_V2_par_mean_vector;
+    std::vector<double> closing_V2_par_mean_vector;
+    std::vector<double> erosion_V2_par_total_vector;
+    std::vector<double> dilation_V2_par_total_vector;
+    std::vector<double> opening_V2_par_total_vector;
+    std::vector<double> closing_V2_par_total_vector;
+
+    double erosion_V2_par_mean;
+    double dilation_V2_par_mean;
+    double opening_V2_par_mean;
+    double closing_V2_par_mean;
+    double erosion_V2_par_total;
+    double dilation_V2_par_total;
+    double opening_V2_par_total;
+    double closing_V2_par_total;
+
+    for(int i=0; i<test_thread.size(); i++) {
+        int thread_num = test_thread[i];
+        omp_set_num_threads(thread_num);
+
+        std::cout << "\n----------- Num used threads " << omp_get_max_threads() << std::endl;
+        //logfile << "NUM THREADS " <<  omp_get_max_threads() << std::endl;
+        std::cout << "\nPARALLEL PART V1\n" << std::endl;
+
+        erosion_V1_test_times.clear();
+        dilation_V1_test_times.clear();
+        opening_V1_test_times.clear();
+        closing_V1_test_times.clear();
+
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage eroded  = erosion_V1_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            erosion_V1_test_times.push_back(end_time_one_image - start_time_one_image);
+            eroded.saveImage("images/erosion/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        erosion_V1_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        erosion_V1_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(erosion_V1_test_times, erosion_V1_par_mean);
+        erosion_V1_par_mean_vector.push_back(erosion_V1_par_mean);
+        erosion_V1_par_total_vector.push_back(erosion_V1_par_total);
+        std::cout << "Mean parallel erosion_V1 execution time : " << erosion_V1_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel erosion_V1 execution time : " << erosion_V1_par_total << " sec" << std::endl;
+
+        for (auto &img : loadedImages) { 
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage dilated = dilation_V1_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            dilation_V1_test_times.push_back(end_time_one_image - start_time_one_image);
+            dilated.saveImage("images/dilation/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        dilation_V1_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        dilation_V1_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(dilation_V1_test_times, dilation_V1_par_mean);
+        dilation_V1_par_mean_vector.push_back(dilation_V1_par_mean);
+        dilation_V1_par_total_vector.push_back(dilation_V1_par_total);
+        std::cout << "Mean parallel dilation_V1 execution time : " << dilation_V1_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel dilation_V1 execution time : " << dilation_V1_par_total << " sec" << std::endl;
+        
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage opened  = opening_V1_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            opening_V1_test_times.push_back(end_time_one_image - start_time_one_image);
+            opened.saveImage("images/opening/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        opening_V1_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        opening_V1_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(opening_V1_test_times, opening_V1_par_mean);
+        opening_V1_par_mean_vector.push_back(opening_V1_par_mean);
+        opening_V1_par_total_vector.push_back(opening_V1_par_total);
+        std::cout << "Mean parallel opening_V1 execution time : " << opening_V1_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel opening_V1 execution time : " << opening_V1_par_total << " sec" << std::endl;
+        
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage closed  = closing_V1_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            closing_V1_test_times.push_back(end_time_one_image - start_time_one_image);
+            closed.saveImage("images/closing/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        closing_V1_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        closing_V1_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(closing_V1_test_times, closing_V1_par_mean);
+        closing_V1_par_mean_vector.push_back(closing_V1_par_mean);
+        closing_V1_par_total_vector.push_back(closing_V1_par_total);
+        std::cout << "Mean parallel closing_V1 execution time : " << closing_V1_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel closing_V1 execution time : " << closing_V1_par_total << " sec" << std::endl;
+
+        // SEQUENTIAL PART V2
+        erosion_V2_test_times.clear();
+        dilation_V2_test_times.clear();
+        opening_V2_test_times.clear();
+        closing_V2_test_times.clear();
+
+        std::cout << "\nPARALLEL PART V2\n" << std::endl;
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage eroded  = erosion_V2_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            erosion_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+            eroded.saveImage("images/erosion/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        erosion_V2_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        erosion_V2_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(erosion_V2_test_times, erosion_V2_par_mean);
+        erosion_V2_par_mean_vector.push_back(erosion_V2_par_mean);
+        erosion_V2_par_total_vector.push_back(erosion_V2_par_total);
+        std::cout << "Mean parallel erosion_V2 execution time : " << erosion_V2_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel erosion_V2 execution time : " << erosion_V2_par_total << " sec" << std::endl;
+
+        for (auto &img : loadedImages) { 
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage dilated = dilation_V2_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            dilation_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+            dilated.saveImage("images/dilation/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        dilation_V2_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        dilation_V2_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(dilation_V2_test_times, dilation_V2_par_mean);
+        dilation_V2_par_mean_vector.push_back(dilation_V2_par_mean);
+        dilation_V2_par_total_vector.push_back(dilation_V2_par_total);
+        std::cout << "Mean parallel dilation_V2 execution time : " << dilation_V2_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel dilation_V2 execution time : " << dilation_V2_par_total << " sec" << std::endl;
+        
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage opened  = opening_V2_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            opening_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+            opened.saveImage("images/opening/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        opening_V2_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        opening_V2_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(opening_V2_test_times, opening_V2_par_mean);
+        opening_V2_par_mean_vector.push_back(opening_V2_par_mean);
+        opening_V2_par_total_vector.push_back(opening_V2_par_total);
+        std::cout << "Mean parallel opening_V2 execution time : " << opening_V2_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel opening_V2 execution time : " << opening_V2_par_total << " sec" << std::endl;
+        
+        for (auto &img : loadedImages) {
+            // Estrazione del nome del file senza percorso
+            std::string filename = std::filesystem::path(img.filename).filename().string();
+            
+            // Applicazione delle trasformazioni e salvataggio
+            start_time_one_image = omp_get_wtime();
+            STBImage closed  = closing_V2_parallel(img, se);
+            end_time_one_image = omp_get_wtime();
+            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
+            closing_V2_test_times.push_back(end_time_one_image - start_time_one_image);
+            closed.saveImage("images/closing/" + filename);
+        }
+
+        start_time_all_images = omp_get_wtime();
+        closing_V2_imgvec_parallel(loadedImages, se);
+        end_time_all_images = omp_get_wtime();
+
+        closing_V2_par_total=end_time_all_images - start_time_all_images;
+        calculateMeanTime(closing_V2_test_times, closing_V2_par_mean);
+        closing_V2_par_mean_vector.push_back(closing_V2_par_mean);
+        closing_V2_par_total_vector.push_back(closing_V2_par_total);
+        std::cout << "Mean parallel closing_V2 execution time : " << closing_V2_par_mean << " sec" << std::endl;
+        std::cout << "Total parallel closing_V2 execution time : " << closing_V2_par_total << " sec" << std::endl;
+    }
+
+    std::vector<double> erosion_V1_mean_speedup;
+    std::vector<double> dilation_V1_mean_speedup;
+    std::vector<double> opening_V1_mean_speedup;
+    std::vector<double> closing_V1_mean_speedup;
+    std::vector<double> erosion_V2_mean_speedup;
+    std::vector<double> dilation_V2_mean_speedup;
+    std::vector<double> opening_V2_mean_speedup;
+    std::vector<double> closing_V2_mean_speedup;
+    for(int i=0; i<test_thread.size(); i++) {
+        erosion_V1_mean_speedup.push_back(erosion_V1_seq_mean / erosion_V1_par_mean_vector[i]);
+        dilation_V1_mean_speedup.push_back(dilation_V1_seq_mean / dilation_V1_par_mean_vector[i]);
+        opening_V1_mean_speedup.push_back(opening_V1_seq_mean / opening_V1_par_mean_vector[i]);
+        closing_V1_mean_speedup.push_back(closing_V1_seq_mean / closing_V1_par_mean_vector[i]);
+        erosion_V2_mean_speedup.push_back(erosion_V2_seq_mean / erosion_V2_par_mean_vector[i]);
+        dilation_V2_mean_speedup.push_back(dilation_V2_seq_mean / dilation_V2_par_mean_vector[i]);
+        opening_V2_mean_speedup.push_back(opening_V2_seq_mean / opening_V2_par_mean_vector[i]);
+        closing_V2_mean_speedup.push_back(closing_V2_seq_mean / closing_V2_par_mean_vector[i]);
+    }
+
+    std::vector<double> erosion_V1_total_speedup;
+    std::vector<double> dilation_V1_total_speedup;
+    std::vector<double> opening_V1_total_speedup;
+    std::vector<double> closing_V1_total_speedup;
+    std::vector<double> erosion_V2_total_speedup;
+    std::vector<double> dilation_V2_total_speedup;
+    std::vector<double> opening_V2_total_speedup;
+    std::vector<double> closing_V2_total_speedup;
+    for(int i=0; i<test_thread.size(); i++) {
+        erosion_V1_total_speedup.push_back(erosion_V1_seq_total / erosion_V1_par_total_vector[i]);
+        dilation_V1_total_speedup.push_back(dilation_V1_seq_total / dilation_V1_par_total_vector[i]);
+        opening_V1_total_speedup.push_back(opening_V1_seq_total / opening_V1_par_total_vector[i]);
+        closing_V1_total_speedup.push_back(closing_V1_seq_total / closing_V1_par_total_vector[i]);
+        erosion_V2_total_speedup.push_back(erosion_V2_seq_total / erosion_V2_par_total_vector[i]);
+        dilation_V2_total_speedup.push_back(dilation_V2_seq_total / dilation_V2_par_total_vector[i]);
+        opening_V2_total_speedup.push_back(opening_V2_seq_total / opening_V2_par_total_vector[i]);
+        closing_V2_total_speedup.push_back(closing_V2_seq_total / closing_V2_par_total_vector[i]);
+    }
+    
+    std::ofstream logfile("speedup_log.txt", std::ofstream::trunc);
+    //std::ofstream csvfile("speedup_results.csv", std::ofstream::trunc);
+
+    // Tabella per V1
+    std::cout << "\n=== Speedup Table V1 ===\n" << std::endl;
+    logfile << "\n=== Speedup Table V1 ===\n" << std::endl;
+
+    std::cout << std::left << std::setw(10) << "Threads"
+            << std::setw(10) << "E_Mean"
+            << std::setw(10) << "D_Mean"
+            << std::setw(10) << "O_Mean"
+            << std::setw(10) << "C_Mean"
+            << std::setw(10) << "E_Total"
+            << std::setw(10) << "D_Total"
+            << std::setw(10) << "O_Total"
+            << std::setw(10) << "C_Total" << std::endl;
+
+    logfile << std::left << std::setw(10) << "Threads"
+            << std::setw(10) << "E_Mean"
+            << std::setw(10) << "D_Mean"
+            << std::setw(10) << "O_Mean"
+            << std::setw(10) << "C_Mean"
+            << std::setw(10) << "E_Total"
+            << std::setw(10) << "D_Total"
+            << std::setw(10) << "O_Total"
+            << std::setw(10) << "C_Total" << std::endl;
+
+    for (int i = 0; i < test_thread.size(); i++) {
+        std::cout << std::fixed << std::setprecision(2)
+                << std::left << std::setw(10) << test_thread[i]
+                << std::setw(10) << erosion_V1_mean_speedup[i]
+                << std::setw(10) << dilation_V1_mean_speedup[i]
+                << std::setw(10) << opening_V1_mean_speedup[i]
+                << std::setw(10) << closing_V1_mean_speedup[i]
+                << std::setw(10) << erosion_V1_total_speedup[i]
+                << std::setw(10) << dilation_V1_total_speedup[i]
+                << std::setw(10) << opening_V1_total_speedup[i]
+                << std::setw(10) << closing_V1_total_speedup[i] << std::endl;
+
+        logfile << std::fixed << std::setprecision(2)
+                << std::left << std::setw(10) << test_thread[i]
+                << std::setw(10) << erosion_V1_mean_speedup[i]
+                << std::setw(10) << dilation_V1_mean_speedup[i]
+                << std::setw(10) << opening_V1_mean_speedup[i]
+                << std::setw(10) << closing_V1_mean_speedup[i]
+                << std::setw(10) << erosion_V1_total_speedup[i]
+                << std::setw(10) << dilation_V1_total_speedup[i]
+                << std::setw(10) << opening_V1_total_speedup[i]
+                << std::setw(10) << closing_V1_total_speedup[i] << std::endl;
+    }
+
+    // Tabella per V2
+    std::cout << "\n=== Speedup Table V2 ===\n" << std::endl;
+    logfile << "\n=== Speedup Table V2 ===\n" << std::endl;
+
+    std::cout << std::left << std::setw(10) << "Threads"
+            << std::setw(10) << "E_Mean"
+            << std::setw(10) << "D_Mean"
+            << std::setw(10) << "O_Mean"
+            << std::setw(10) << "C_Mean"
+            << std::setw(10) << "E_Total"
+            << std::setw(10) << "D_Total"
+            << std::setw(10) << "O_Total"
+            << std::setw(10) << "C_Total" << std::endl;
+
+    logfile << std::left << std::setw(10) << "Threads"
+            << std::setw(10) << "E_Mean"
+            << std::setw(10) << "D_Mean"
+            << std::setw(10) << "O_Mean"
+            << std::setw(10) << "C_Mean"
+            << std::setw(10) << "E_Total"
+            << std::setw(10) << "D_Total"
+            << std::setw(10) << "O_Total"
+            << std::setw(10) << "C_Total" << std::endl;
+
+    for (int i = 0; i < test_thread.size(); i++) {
+        std::cout << std::fixed << std::setprecision(2)
+                << std::left << std::setw(10) << test_thread[i]
+                << std::setw(10) << erosion_V2_mean_speedup[i]
+                << std::setw(10) << dilation_V2_mean_speedup[i]
+                << std::setw(10) << opening_V2_mean_speedup[i]
+                << std::setw(10) << closing_V2_mean_speedup[i]
+                << std::setw(10) << erosion_V2_total_speedup[i]
+                << std::setw(10) << dilation_V2_total_speedup[i]
+                << std::setw(10) << opening_V2_total_speedup[i]
+                << std::setw(10) << closing_V2_total_speedup[i] << std::endl;
+
+        logfile << std::fixed << std::setprecision(2)
+                << std::left << std::setw(10) << test_thread[i]
+                << std::setw(10) << erosion_V2_mean_speedup[i]
+                << std::setw(10) << dilation_V2_mean_speedup[i]
+                << std::setw(10) << opening_V2_mean_speedup[i]
+                << std::setw(10) << closing_V2_mean_speedup[i]
+                << std::setw(10) << erosion_V2_total_speedup[i]
+                << std::setw(10) << dilation_V2_total_speedup[i]
+                << std::setw(10) << opening_V2_total_speedup[i]
+                << std::setw(10) << closing_V2_total_speedup[i] << std::endl;
+    }
+    /*
+    std::cout << "\n=== Speedup Table ===\n" << std::endl;
+    logfile << "\n=== Speedup Table ===\n" << std::endl;
+
+    std::cout << std::left << std::setw(10) << "Threads"
+            << std::setw(10) << "E_Mean"
+            << std::setw(10) << "D_Mean"
+            << std::setw(10) << "O_Mean"
+            << std::setw(10) << "C_Mean"
+            << std::setw(10) << "E_Total"
+            << std::setw(10) << "D_Total"
+            << std::setw(10) << "O_Total"
+            << std::setw(10) << "C_Total" << std::endl;
+
+    if (logfile.is_open()) {
+        logfile << std::left << std::setw(10) << "Threads"
+                << std::setw(10) << "E_Mean"
+                << std::setw(10) << "D_Mean"
+                << std::setw(10) << "O_Mean"
+                << std::setw(10) << "C_Mean"
+                << std::setw(10) << "E_Total"
+                << std::setw(10) << "D_Total"
+                << std::setw(10) << "O_Total"
+                << std::setw(10) << "C_Total" << std::endl;
+    } else {
+        std::cerr << "Error opening the log file!" << std::endl;
+    }
+
+    if (csvfile.is_open()) {
+        csvfile << "Threads,E_Mean,D_Mean,O_Mean,C_Mean,E_Total,D_Total,O_Total,C_Total\n";
+    } else {
+        std::cerr << "Error opening the CSV file!" << std::endl;
+    }
+
+    for (int i = 0; i < test_thread.size(); i++) {
+        std::cout << std::fixed << std::setprecision(2)
+                << std::left << std::setw(10) << test_thread[i]
+                << std::setw(10) << erosion_mean_speedup[i]
+                << std::setw(10) << dilation_mean_speedup[i]
+                << std::setw(10) << opening_mean_speedup[i]
+                << std::setw(10) << closing_mean_speedup[i]
+                << std::setw(10) << erosion_total_speedup[i]
+                << std::setw(10) << dilation_total_speedup[i]
+                << std::setw(10) << opening_total_speedup[i]
+                << std::setw(10) << closing_total_speedup[i] << std::endl;
+
+        if (logfile.is_open()) {
+            logfile << std::fixed << std::setprecision(2)
+                    << std::left << std::setw(10) << test_thread[i]
+                    << std::setw(10) << erosion_mean_speedup[i]
+                    << std::setw(10) << dilation_mean_speedup[i]
+                    << std::setw(10) << opening_mean_speedup[i]
+                    << std::setw(10) << closing_mean_speedup[i]
+                    << std::setw(10) << erosion_total_speedup[i]
+                    << std::setw(10) << dilation_total_speedup[i]
+                    << std::setw(10) << opening_total_speedup[i]
+                    << std::setw(10) << closing_total_speedup[i] << std::endl;
+        }
+
+        if (csvfile.is_open()) {
+            csvfile << test_thread[i] << ","
+                    << std::fixed << std::setprecision(2) << erosion_mean_speedup[i] << ","
+                    << dilation_mean_speedup[i] << ","
+                    << opening_mean_speedup[i] << ","
+                    << closing_mean_speedup[i] << ","
+                    << erosion_total_speedup[i] << ","
+                    << dilation_total_speedup[i] << ","
+                    << opening_total_speedup[i] << ","
+                    << closing_total_speedup[i] << "\n";
+        }
+    }
+
+    std::cout << "\nLegend:\n"
+            << "E_Mean  - Erosion Mean Speedup\n"
+            << "D_Mean  - Dilation Mean Speedup\n"
+            << "O_Mean  - Opening Mean Speedup\n"
+            << "C_Mean  - Closing Mean Speedup\n"
+            << "E_Total - Erosion Total Speedup\n"
+            << "D_Total - Dilation Total Speedup\n"
+            << "O_Total - Opening Total Speedup\n"
+            << "C_Total - Closing Total Speedup\n";
+
+    if (logfile.is_open()) {
+        logfile << "\nLegend:\n"
+                << "E_Mean  - Erosion Mean Speedup\n"
+                << "D_Mean  - Dilation Mean Speedup\n"
+                << "O_Mean  - Opening Mean Speedup\n"
+                << "C_Mean  - Closing Mean Speedup\n"
+                << "E_Total - Erosion Total Speedup\n"
+                << "D_Total - Dilation Total Speedup\n"
+                << "O_Total - Opening Total Speedup\n"
+                << "C_Total - Closing Total Speedup\n";
+    }
+
+    logfile.close();
+    csvfile.close();
+    */
+    logfile.close();
     // Libera memoria delle immagini caricate
     for (auto &img : loadedImages) {
         stbi_image_free(img.image_data);
     }
+    return 0;
 }

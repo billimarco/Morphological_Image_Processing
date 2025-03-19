@@ -33,6 +33,7 @@
                 "-fdiagnostics-color=always",
                 "-std=c++17",
                 "-I${workspaceFolder}/include",
+                "-fopenmp",
                 "-g",
                 "${workspaceFolder}/src/main.cpp",
                 "-o",
