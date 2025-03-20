@@ -778,6 +778,7 @@ STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) 
     STBImage result;
     result.initialize(img.width, img.height);
 
+    #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool erode = false;
@@ -807,6 +808,7 @@ STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se)
     STBImage result;
     result.initialize(img.width, img.height);
 
+    #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool dilate = false;
@@ -833,19 +835,152 @@ STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se)
 
 // Funzione per eseguire l'apertura in parallelo (Erosione seguita da Dilatazione)
 STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) {
-    return dilation_V1(erosion_V1(img, se), se);
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    #pragma omp parallel shared(result,half_result,img,se) default(none)
+    {
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (erode) break;
+                }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                            if (se.kernel[i][j] == 1 && half_result.image_data[ny * half_result.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (dilate) break;
+                }
+                result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+    }
+
+    return result;
 }
 
 // Funzione per eseguire la chiusura in parallelo (Dilatazione seguita da Erosione)
 STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) {
-    return erosion_V1(dilation_V1(img, se), se);
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    #pragma omp parallel shared(result,half_result,img,se) default(none)
+    {
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (dilate) break;
+                }
+                half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool erode = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                            if (se.kernel[i][j] == 1 && half_result.image_data[ny * half_result.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (erode) break;
+                }
+                result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+            }
+        }
+    }
+
+    return result;
 }
 
 // Funzione per eseguire l'erosione per un vettore di immagini in parallelo
 std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se) default(none)
     for (auto &img : imgs) { 
-        imgs_results[img.filename] = erosion_V1(img, se);
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (erode) break;
+                }
+                result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -854,7 +989,35 @@ std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::
 std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
     for (auto &img : imgs) {
-        imgs_results[img.filename] = dilation_V1(img, se);
+        STBImage result;
+        result.initialize(img.width, img.height);
+
+        #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (int i = 0; i < se.height; i++) {
+                    for (int j = 0; j < se.width; j++) {
+                        int nx = x + j - se.anchor_x;
+                        int ny = y + i - se.anchor_y;
+
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (dilate) break;
+                }
+                result.image_data[y * img.width + x] = dilate ? 255 : 0;
+            }
+        }
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -863,7 +1026,62 @@ std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std:
 std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
     for (auto &img : imgs) {
-        imgs_results[img.filename] = dilation_V1(erosion_V1(img, se), se);
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        #pragma omp parallel shared(result,half_result,img,se) default(none)
+        {
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < img.height; y++) {
+                for (int x = 0; x < img.width; x++) {
+                    bool erode = false;
+                    for (int i = 0; i < se.height; i++) {
+                        for (int j = 0; j < se.width; j++) {
+                            int nx = x + j - se.anchor_x;
+                            int ny = y + i - se.anchor_y;
+
+                            if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                                if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 0) {
+                                    erode = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (erode) break;
+                    }
+                    half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+                }
+            }
+
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < half_result.height; y++) {
+                for (int x = 0; x < half_result.width; x++) {
+                    bool dilate = false;
+                    for (int i = 0; i < se.height; i++) {
+                        for (int j = 0; j < se.width; j++) {
+                            int nx = x + j - se.anchor_x;
+                            int ny = y + i - se.anchor_y;
+
+                            if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                                if (se.kernel[i][j] == 1 && half_result.image_data[ny * half_result.width + nx] == 255) {
+                                    dilate = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (dilate) break;
+                    }
+                    result.image_data[y * img.width + x] = dilate ? 255 : 0;
+                }
+            }
+        }
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -872,7 +1090,62 @@ std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::
 std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
     for (auto &img : imgs) {
-        imgs_results[img.filename] = erosion_V1(dilation_V1(img, se), se);
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+    
+        #pragma omp parallel shared(result,half_result,img,se) default(none)
+        {
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < img.height; y++) {
+                for (int x = 0; x < img.width; x++) {
+                    bool dilate = false;
+                    for (int i = 0; i < se.height; i++) {
+                        for (int j = 0; j < se.width; j++) {
+                            int nx = x + j - se.anchor_x;
+                            int ny = y + i - se.anchor_y;
+    
+                            if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                                if (se.kernel[i][j] == 1 && img.image_data[ny * img.width + nx] == 255) {
+                                    dilate = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (dilate) break;
+                    }
+                    half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
+                }
+            }
+    
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < half_result.height; y++) {
+                for (int x = 0; x < half_result.width; x++) {
+                    bool erode = false;
+                    for (int i = 0; i < se.height; i++) {
+                        for (int j = 0; j < se.width; j++) {
+                            int nx = x + j - se.anchor_x;
+                            int ny = y + i - se.anchor_y;
+    
+                            if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                                if (se.kernel[i][j] == 1 && half_result.image_data[ny * half_result.width + nx] == 0) {
+                                    erode = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (erode) break;
+                    }
+                    result.image_data[y * half_result.width + x] = erode ? 0 : 255;
+                }
+            }
+        }
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -880,9 +1153,9 @@ std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::
 // Funzione per eseguire l'erosione ottimizzata in parallelo
 STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage result;
+    std::vector<std::pair<int, int>> active_pixels;
     result.initialize(img.width, img.height);
 
-    std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
         for (int j = 0; j < se.width; j++) {
             if (se.kernel[i][j] == 1) {
@@ -891,6 +1164,7 @@ STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) 
         }
     }
 
+    #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool erode = false;
@@ -907,6 +1181,7 @@ STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) 
             result.image_data[y * img.width + x] = erode ? 0 : 255;
         }
     }
+
     return result;
 }
 
@@ -924,6 +1199,7 @@ STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se)
         }
     }
 
+    #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool dilate = false;
@@ -959,37 +1235,42 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
         }
     }
 
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            bool dilate = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                    if (img.image_data[ny * img.width + nx] == 255) {
-                        dilate = true;
-                        break;
+    #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+    {
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
                     }
                 }
+                half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
             }
-            half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
         }
-    }
 
-    for (int y = 0; y < half_result.height; y++) {
-        for (int x = 0; x < half_result.width; x++) {
-            bool erode = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                    if (half_result.image_data[ny * half_result.width + nx] == 0) {
-                        erode = true;
-                        break;
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
                     }
                 }
+                result.image_data[y * half_result.width + x] = erode ? 0 : 255;
             }
-            result.image_data[y * half_result.width + x] = erode ? 0 : 255;
         }
     }
 
@@ -1012,40 +1293,44 @@ STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) 
         }
     }
 
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            bool erode = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                    if (img.image_data[ny * img.width + nx] == 0) {
-                        erode = true;
-                        break;
+    #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+    {
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
                     }
                 }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
             }
-            half_result.image_data[y * img.width + x] = erode ? 0 : 255;
         }
-    }
 
-    for (int y = 0; y < half_result.height; y++) {
-        for (int x = 0; x < half_result.width; x++) {
-            bool dilate = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                    if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                        dilate = true;
-                        break;
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
                     }
                 }
+                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
             }
-            result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
         }
     }
-
     return result;
 }
 
@@ -1062,10 +1347,12 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
         }
     }
 
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) { 
         STBImage result;
         result.initialize(img.width, img.height);
 
+        #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -1083,7 +1370,10 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
             }
         }
 
+        #pragma omp critical
+        {
         imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -1101,10 +1391,12 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
         }
     }
 
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) {
         STBImage result;
         result.initialize(img.width, img.height);
 
+        #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1121,7 +1413,10 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
                 result.image_data[y * img.width + x] = dilate ? 255 : 0;
             }
         }
+        #pragma omp critical
+        {
         imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -1139,45 +1434,56 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
         }
     }
 
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initialize(img.width, img.height);
         result.initialize(img.width, img.height);
 
-        for (int y = 0; y < img.height; y++) {
-            for (int x = 0; x < img.width; x++) {
-                bool dilate = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                        if (img.image_data[ny * img.width + nx] == 255) {
-                            dilate = true;
-                            break;
+        #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+        {   
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < img.height; y++) {
+                for (int x = 0; x < img.width; x++) {
+                    bool dilate = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (img.image_data[ny * img.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
                         }
                     }
+                    half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
                 }
-                half_result.image_data[y * img.width + x] = dilate ? 255 : 0;
             }
-        }
-        for (int y = 0; y < half_result.height; y++) {
-            for (int x = 0; x < half_result.width; x++) {
-                bool erode = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                        if (half_result.image_data[ny * half_result.width + nx] == 0) {
-                            erode = true;
-                            break;
+
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < half_result.height; y++) {
+                for (int x = 0; x < half_result.width; x++) {
+                    bool erode = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                            if (half_result.image_data[ny * half_result.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
                         }
                     }
+                    result.image_data[y * half_result.width + x] = erode ? 0 : 255;
                 }
-                result.image_data[y * half_result.width + x] = erode ? 0 : 255;
             }
         }
-        imgs_results[img.filename] = result;
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
@@ -1195,53 +1501,64 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
         }
     }
 
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initialize(img.width, img.height);
         result.initialize(img.width, img.height);
 
-        for (int y = 0; y < img.height; y++) {
-            for (int x = 0; x < img.width; x++) {
-                bool erode = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                        if (img.image_data[ny * img.width + nx] == 0) {
-                            erode = true;
-                            break;
+        #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+        {
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < img.height; y++) {
+                for (int x = 0; x < img.width; x++) {
+                    bool erode = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (img.image_data[ny * img.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
                         }
                     }
+                    half_result.image_data[y * img.width + x] = erode ? 0 : 255;
                 }
-                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
             }
-        }
-        for (int y = 0; y < half_result.height; y++) {
-            for (int x = 0; x < half_result.width; x++) {
-                bool dilate = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                            dilate = true;
-                            break;
+
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < half_result.height; y++) {
+                for (int x = 0; x < half_result.width; x++) {
+                    bool dilate = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                            if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
                         }
                     }
+                    result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
                 }
-                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
             }
         }
-        imgs_results[img.filename] = result;
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
     }
     return imgs_results;
 }
 
 int main(){
-#ifdef _OPENMP
-    std::cout << "_OPENMP defined" << std::endl;
-#endif
+    #ifdef _OPENMP
+        std::cout << "_OPENMP defined" << std::endl;
+    #endif
     createPath("images/basis");
     createPath("images/erosion");
     createPath("images/dilation");
@@ -1503,8 +1820,8 @@ int main(){
     
     // PARALLEL PART
     //const int test_thread_array [16] = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    //std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10};
+    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
+    //std::vector<int> test_thread = {6,12};
 
     std::vector<double> erosion_V1_par_mean_vector;
     std::vector<double> dilation_V1_par_mean_vector;
