@@ -771,7 +771,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<ST
 
 
 
-// FUNZIONI OPERAZIONI MORFOLOGICHE IN MODO PARALLELO TODO
+// FUNZIONI OPERAZIONI MORFOLOGICHE IN MODO PARALLELO
 
 // Funzione per eseguire l'erosione in parallelo
 STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) {
@@ -1555,6 +1555,83 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
     return imgs_results;
 }
 
+
+// Funzione per testare le funzioni di morfologia matematica ed ottenere i tempi di esecuzione
+void testProcessImages(const std::vector<STBImage>& loadedImages, 
+    const StructuringElement& se, 
+    const std::string& operation, 
+    const std::string& mode, 
+    double& mean_time, 
+    double& total_time) {
+    auto operationFunc = [&](const STBImage& img) -> STBImage {
+        if (operation == "erosion" && mode == "V1") return erosion_V1(img, se);
+        if (operation == "dilation" && mode == "V1") return dilation_V1(img, se);
+        if (operation == "opening" && mode == "V1") return opening_V1(img, se);
+        if (operation == "closing" && mode == "V1") return closing_V1(img, se);
+        if (operation == "erosion" && mode == "V2") return erosion_V2(img, se);
+        if (operation == "dilation" && mode == "V2") return dilation_V2(img, se);
+        if (operation == "opening" && mode == "V2") return opening_V2(img, se);
+        if (operation == "closing" && mode == "V2") return closing_V2(img, se);
+        if (operation == "erosion" && mode == "V1_parallel") return erosion_V1_parallel(img, se);
+        if (operation == "dilation" && mode == "V1_parallel") return dilation_V1_parallel(img, se);
+        if (operation == "opening" && mode == "V1_parallel") return opening_V1_parallel(img, se);
+        if (operation == "closing" && mode == "V1_parallel") return closing_V1_parallel(img, se);
+        if (operation == "erosion" && mode == "V2_parallel") return erosion_V2_parallel(img, se);
+        if (operation == "dilation" && mode == "V2_parallel") return dilation_V2_parallel(img, se);
+        if (operation == "opening" && mode == "V2_parallel") return opening_V2_parallel(img, se);
+        if (operation == "closing" && mode == "V2_parallel") return closing_V2_parallel(img, se);
+        throw std::invalid_argument("Invalid operation or mode");
+    };
+
+    auto operationImgVecFunc = [&]() -> std::unordered_map<std::string, STBImage> {
+        if (operation == "erosion" && mode == "V1") return erosion_V1_imgvec(loadedImages, se);
+        if (operation == "dilation" && mode == "V1") return dilation_V1_imgvec(loadedImages, se);
+        if (operation == "opening" && mode == "V1") return opening_V1_imgvec(loadedImages, se);
+        if (operation == "closing" && mode == "V1") return closing_V1_imgvec(loadedImages, se);
+        if (operation == "erosion" && mode == "V2") return erosion_V2_imgvec(loadedImages, se);
+        if (operation == "dilation" && mode == "V2") return dilation_V2_imgvec(loadedImages, se);
+        if (operation == "opening" && mode == "V2") return opening_V2_imgvec(loadedImages, se);
+        if (operation == "closing" && mode == "V2") return closing_V2_imgvec(loadedImages, se);
+        if (operation == "erosion" && mode == "V1_parallel") return erosion_V1_imgvec_parallel(loadedImages, se);
+        if (operation == "dilation" && mode == "V1_parallel") return dilation_V1_imgvec_parallel(loadedImages, se);
+        if (operation == "opening" && mode == "V1_parallel") return opening_V1_imgvec_parallel(loadedImages, se);
+        if (operation == "closing" && mode == "V1_parallel") return closing_V1_imgvec_parallel(loadedImages, se);
+        if (operation == "erosion" && mode == "V2_parallel") return erosion_V2_imgvec_parallel(loadedImages, se);
+        if (operation == "dilation" && mode == "V2_parallel") return dilation_V2_imgvec_parallel(loadedImages, se);
+        if (operation == "opening" && mode == "V2_parallel") return opening_V2_imgvec_parallel(loadedImages, se);
+        if (operation == "closing" && mode == "V2_parallel") return closing_V2_imgvec_parallel(loadedImages, se);
+        throw std::invalid_argument("Invalid operation or mode");
+    };
+
+    auto calculateMeanTime = [](const std::vector<double> &test_times, double &mean_time) {
+        double sum = std::accumulate(test_times.begin(), test_times.end(), 0.0);
+        mean_time = sum / test_times.size();
+    };
+
+    std::string outputDir = "images/" + operation + "/";
+    double start_time_one_image, end_time_one_image;
+    std::vector<double> test_times;
+
+    for (auto& img : loadedImages) {
+        std::string filename = std::filesystem::path(img.filename).filename().string();
+        start_time_one_image = omp_get_wtime();
+        STBImage result = operationFunc(img);
+        end_time_one_image = omp_get_wtime();
+        test_times.push_back(end_time_one_image - start_time_one_image);
+        result.saveImage(outputDir + filename);
+    }
+
+    double start_time_all_images = omp_get_wtime();
+    operationImgVecFunc();
+    double end_time_all_images = omp_get_wtime();
+
+    total_time = end_time_all_images - start_time_all_images;
+    calculateMeanTime(test_times, mean_time);
+
+    std::cout << "Mean " << mode << " " << operation << " execution time: " << mean_time << " sec" << std::endl;
+    std::cout << "Total " << mode << " " << operation << " execution time: " << total_time << " sec" << std::endl;
+}
+
 int main(){
     #ifdef _OPENMP
         std::cout << "_OPENMP defined" << std::endl;
@@ -1609,220 +1686,40 @@ int main(){
     se.print();
     se.saveImage("se.jpg");
     */
-
-    // lambda function to calculate the mean time
-    auto calculateMeanTime = [](const std::vector<double> &test_times, double &mean_time) {
-        double sum = std::accumulate(test_times.begin(), test_times.end(), 0.0);
-        mean_time = sum / test_times.size();
-    };
-
-    double start_time_all_images, end_time_all_images;
-    double start_time_one_image, end_time_one_image;
-
-    // SEQUENTIAL PART V1
-    std::vector<double> erosion_V1_test_times;
-    std::vector<double> dilation_V1_test_times;
-    std::vector<double> opening_V1_test_times;
-    std::vector<double> closing_V1_test_times;
-
-    std::cout << "\nSEQUENTIAL PART V1\n" << std::endl;
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage eroded  = erosion_V1(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        erosion_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-        eroded.saveImage("images/erosion/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    erosion_V1_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
+    //sequential variables
     double erosion_V1_seq_mean;
-    double erosion_V1_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(erosion_V1_test_times, erosion_V1_seq_mean);
-    std::cout << "Mean sequential erosion_V1 execution time : " << erosion_V1_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential erosion_V1 execution time : " << erosion_V1_seq_total << " sec" << std::endl;
-
-    for (auto &img : loadedImages) { 
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage dilated = dilation_V1(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        dilation_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-        dilated.saveImage("images/dilation/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    dilation_V1_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double dilation_V1_seq_mean;
-    double dilation_V1_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(dilation_V1_test_times, dilation_V1_seq_mean);
-    std::cout << "Mean sequential dilation_V1 execution time : " << dilation_V1_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential dilation_V1 execution time : " << dilation_V1_seq_total << " sec" << std::endl;
-    
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage opened  = opening_V1(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        opening_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-        opened.saveImage("images/opening/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    opening_V1_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double opening_V1_seq_mean;
-    double opening_V1_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(opening_V1_test_times, opening_V1_seq_mean);
-    std::cout << "Mean sequential opening_V1 execution time : " << opening_V1_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential opening_V1 execution time : " << opening_V1_seq_total << " sec" << std::endl;
-    
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage closed  = closing_V1(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        closing_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-        closed.saveImage("images/closing/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    closing_V1_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double closing_V1_seq_mean;
-    double closing_V1_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(closing_V1_test_times, closing_V1_seq_mean);
-    std::cout << "Mean sequential closing_V1 execution time : " << closing_V1_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential closing_V1 execution time : " << closing_V1_seq_total << " sec" << std::endl;
-
-    // SEQUENTIAL PART V2
-    std::vector<double> erosion_V2_test_times;
-    std::vector<double> dilation_V2_test_times;
-    std::vector<double> opening_V2_test_times;
-    std::vector<double> closing_V2_test_times;
-
-    std::cout << "\nSEQUENTIAL PART V2\n" << std::endl;
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage eroded  = erosion_V2(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        erosion_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-        eroded.saveImage("images/erosion/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    erosion_V2_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
+    double erosion_V1_seq_total;
+    double dilation_V1_seq_total;
+    double opening_V1_seq_total;
+    double closing_V1_seq_total;
 
     double erosion_V2_seq_mean;
-    double erosion_V2_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(erosion_V2_test_times, erosion_V2_seq_mean);
-    std::cout << "Mean sequential erosion_V2 execution time : " << erosion_V2_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential erosion_V2 execution time : " << erosion_V2_seq_total << " sec" << std::endl;
-
-    for (auto &img : loadedImages) { 
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage dilated = dilation_V2(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        dilation_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-        dilated.saveImage("images/dilation/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    dilation_V2_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double dilation_V2_seq_mean;
-    double dilation_V2_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(dilation_V2_test_times, dilation_V2_seq_mean);
-    std::cout << "Mean sequential dilation_V2 execution time : " << dilation_V2_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential dilation_V2 execution time : " << dilation_V2_seq_total << " sec" << std::endl;
-    
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage opened  = opening_V2(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        opening_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-        opened.saveImage("images/opening/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    opening_V2_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double opening_V2_seq_mean;
-    double opening_V2_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(opening_V2_test_times, opening_V2_seq_mean);
-    std::cout << "Mean sequential opening_V2 execution time : " << opening_V2_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential opening_V2 execution time : " << opening_V2_seq_total << " sec" << std::endl;
-    
-    for (auto &img : loadedImages) {
-        // Estrazione del nome del file senza percorso
-        std::string filename = std::filesystem::path(img.filename).filename().string();
-        
-        // Applicazione delle trasformazioni e salvataggio
-        start_time_one_image = omp_get_wtime();
-        STBImage closed  = closing_V2(img, se);
-        end_time_one_image = omp_get_wtime();
-        //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-        closing_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-        closed.saveImage("images/closing/" + filename);
-    }
-
-    start_time_all_images = omp_get_wtime();
-    closing_V2_imgvec(loadedImages, se);
-    end_time_all_images = omp_get_wtime();
-
     double closing_V2_seq_mean;
-    double closing_V2_seq_total=end_time_all_images - start_time_all_images;
-    calculateMeanTime(closing_V2_test_times, closing_V2_seq_mean);
-    std::cout << "Mean sequential closing_V2 execution time : " << closing_V2_seq_mean << " sec" << std::endl;
-    std::cout << "Total sequential closing_V2 execution time : " << closing_V2_seq_total << " sec" << std::endl;
-    
-    
-    // PARALLEL PART
-    //const int test_thread_array [16] = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
-    //std::vector<int> test_thread = {6,12};
+    double erosion_V2_seq_total;
+    double dilation_V2_seq_total;
+    double opening_V2_seq_total;
+    double closing_V2_seq_total;
 
+    std::cout << "\nSEQUENTIAL PART V1\n" << std::endl;
+    testProcessImages(loadedImages, se, "erosion", "V1", erosion_V1_seq_mean, erosion_V1_seq_total);
+    testProcessImages(loadedImages, se, "dilation", "V1", dilation_V1_seq_mean, dilation_V1_seq_total);
+    testProcessImages(loadedImages, se, "opening", "V1", opening_V1_seq_mean, opening_V1_seq_total);
+    testProcessImages(loadedImages, se, "closing", "V1", closing_V1_seq_mean, closing_V1_seq_total);
+
+    // Sequential V2
+    std::cout << "\nSEQUENTIAL PART V2\n" << std::endl;
+    testProcessImages(loadedImages, se, "erosion", "V2", erosion_V2_seq_mean, erosion_V2_seq_total);
+    testProcessImages(loadedImages, se, "dilation", "V2", dilation_V2_seq_mean, dilation_V2_seq_total);
+    testProcessImages(loadedImages, se, "opening", "V2", opening_V2_seq_mean, opening_V2_seq_total);
+    testProcessImages(loadedImages, se, "closing", "V2", closing_V2_seq_mean, closing_V2_seq_total);
+
+    //parallel variables
+    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
     std::vector<double> erosion_V1_par_mean_vector;
     std::vector<double> dilation_V1_par_mean_vector;
     std::vector<double> opening_V1_par_mean_vector;
@@ -1832,15 +1729,6 @@ int main(){
     std::vector<double> opening_V1_par_total_vector;
     std::vector<double> closing_V1_par_total_vector;
 
-    double erosion_V1_par_mean;
-    double dilation_V1_par_mean;
-    double opening_V1_par_mean;
-    double closing_V1_par_mean;
-    double erosion_V1_par_total;
-    double dilation_V1_par_total;
-    double opening_V1_par_total;
-    double closing_V1_par_total;
-
     std::vector<double> erosion_V2_par_mean_vector;
     std::vector<double> dilation_V2_par_mean_vector;
     std::vector<double> opening_V2_par_mean_vector;
@@ -1849,6 +1737,15 @@ int main(){
     std::vector<double> dilation_V2_par_total_vector;
     std::vector<double> opening_V2_par_total_vector;
     std::vector<double> closing_V2_par_total_vector;
+
+    double erosion_V1_par_mean;
+    double dilation_V1_par_mean;
+    double opening_V1_par_mean;
+    double closing_V1_par_mean;
+    double erosion_V1_par_total;
+    double dilation_V1_par_total;
+    double opening_V1_par_total;
+    double closing_V1_par_total;
 
     double erosion_V2_par_mean;
     double dilation_V2_par_mean;
@@ -1865,211 +1762,37 @@ int main(){
 
         std::cout << "\n----------- Num used threads " << omp_get_max_threads() << std::endl;
         //logfile << "NUM THREADS " <<  omp_get_max_threads() << std::endl;
+        // Parallel V1
         std::cout << "\nPARALLEL PART V1\n" << std::endl;
+        testProcessImages(loadedImages, se, "erosion", "V1_parallel", erosion_V1_par_mean, erosion_V1_par_total);
+        testProcessImages(loadedImages, se, "dilation", "V1_parallel", dilation_V1_par_mean, dilation_V1_par_total);
+        testProcessImages(loadedImages, se, "opening", "V1_parallel", opening_V1_par_mean, opening_V1_par_total);
+        testProcessImages(loadedImages, se, "closing", "V1_parallel", closing_V1_par_mean, closing_V1_par_total);
 
-        erosion_V1_test_times.clear();
-        dilation_V1_test_times.clear();
-        opening_V1_test_times.clear();
-        closing_V1_test_times.clear();
-
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage eroded  = erosion_V1_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            erosion_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-            eroded.saveImage("images/erosion/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        erosion_V1_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        erosion_V1_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(erosion_V1_test_times, erosion_V1_par_mean);
         erosion_V1_par_mean_vector.push_back(erosion_V1_par_mean);
         erosion_V1_par_total_vector.push_back(erosion_V1_par_total);
-        std::cout << "Mean parallel erosion_V1 execution time : " << erosion_V1_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel erosion_V1 execution time : " << erosion_V1_par_total << " sec" << std::endl;
-
-        for (auto &img : loadedImages) { 
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage dilated = dilation_V1_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            dilation_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-            dilated.saveImage("images/dilation/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        dilation_V1_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        dilation_V1_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(dilation_V1_test_times, dilation_V1_par_mean);
         dilation_V1_par_mean_vector.push_back(dilation_V1_par_mean);
         dilation_V1_par_total_vector.push_back(dilation_V1_par_total);
-        std::cout << "Mean parallel dilation_V1 execution time : " << dilation_V1_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel dilation_V1 execution time : " << dilation_V1_par_total << " sec" << std::endl;
-        
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage opened  = opening_V1_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            opening_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-            opened.saveImage("images/opening/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        opening_V1_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        opening_V1_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(opening_V1_test_times, opening_V1_par_mean);
         opening_V1_par_mean_vector.push_back(opening_V1_par_mean);
         opening_V1_par_total_vector.push_back(opening_V1_par_total);
-        std::cout << "Mean parallel opening_V1 execution time : " << opening_V1_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel opening_V1 execution time : " << opening_V1_par_total << " sec" << std::endl;
-        
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage closed  = closing_V1_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            closing_V1_test_times.push_back(end_time_one_image - start_time_one_image);
-            closed.saveImage("images/closing/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        closing_V1_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        closing_V1_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(closing_V1_test_times, closing_V1_par_mean);
         closing_V1_par_mean_vector.push_back(closing_V1_par_mean);
         closing_V1_par_total_vector.push_back(closing_V1_par_total);
-        std::cout << "Mean parallel closing_V1 execution time : " << closing_V1_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel closing_V1 execution time : " << closing_V1_par_total << " sec" << std::endl;
 
-        // SEQUENTIAL PART V2
-        erosion_V2_test_times.clear();
-        dilation_V2_test_times.clear();
-        opening_V2_test_times.clear();
-        closing_V2_test_times.clear();
-
+        // Parallel V2
         std::cout << "\nPARALLEL PART V2\n" << std::endl;
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
+        testProcessImages(loadedImages, se, "erosion", "V2_parallel", erosion_V2_par_mean, erosion_V2_par_total);
+        testProcessImages(loadedImages, se, "dilation", "V2_parallel", dilation_V2_par_mean, dilation_V2_par_total);
+        testProcessImages(loadedImages, se, "opening", "V2_parallel", opening_V2_par_mean, opening_V2_par_total);
+        testProcessImages(loadedImages, se, "closing", "V2_parallel", closing_V2_par_mean, closing_V2_par_total);
 
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage eroded  = erosion_V2_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            erosion_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-            eroded.saveImage("images/erosion/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        erosion_V2_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        erosion_V2_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(erosion_V2_test_times, erosion_V2_par_mean);
         erosion_V2_par_mean_vector.push_back(erosion_V2_par_mean);
         erosion_V2_par_total_vector.push_back(erosion_V2_par_total);
-        std::cout << "Mean parallel erosion_V2 execution time : " << erosion_V2_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel erosion_V2 execution time : " << erosion_V2_par_total << " sec" << std::endl;
-
-        for (auto &img : loadedImages) { 
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage dilated = dilation_V2_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            dilation_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-            dilated.saveImage("images/dilation/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        dilation_V2_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        dilation_V2_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(dilation_V2_test_times, dilation_V2_par_mean);
         dilation_V2_par_mean_vector.push_back(dilation_V2_par_mean);
         dilation_V2_par_total_vector.push_back(dilation_V2_par_total);
-        std::cout << "Mean parallel dilation_V2 execution time : " << dilation_V2_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel dilation_V2 execution time : " << dilation_V2_par_total << " sec" << std::endl;
-        
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage opened  = opening_V2_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            opening_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-            opened.saveImage("images/opening/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        opening_V2_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        opening_V2_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(opening_V2_test_times, opening_V2_par_mean);
         opening_V2_par_mean_vector.push_back(opening_V2_par_mean);
         opening_V2_par_total_vector.push_back(opening_V2_par_total);
-        std::cout << "Mean parallel opening_V2 execution time : " << opening_V2_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel opening_V2 execution time : " << opening_V2_par_total << " sec" << std::endl;
-        
-        for (auto &img : loadedImages) {
-            // Estrazione del nome del file senza percorso
-            std::string filename = std::filesystem::path(img.filename).filename().string();
-            
-            // Applicazione delle trasformazioni e salvataggio
-            start_time_one_image = omp_get_wtime();
-            STBImage closed  = closing_V2_parallel(img, se);
-            end_time_one_image = omp_get_wtime();
-            //std::cout << "Execution time : " << end_time_one_image - start_time_one_image << " sec" << std::endl;
-            closing_V2_test_times.push_back(end_time_one_image - start_time_one_image);
-            closed.saveImage("images/closing/" + filename);
-        }
-
-        start_time_all_images = omp_get_wtime();
-        closing_V2_imgvec_parallel(loadedImages, se);
-        end_time_all_images = omp_get_wtime();
-
-        closing_V2_par_total=end_time_all_images - start_time_all_images;
-        calculateMeanTime(closing_V2_test_times, closing_V2_par_mean);
         closing_V2_par_mean_vector.push_back(closing_V2_par_mean);
         closing_V2_par_total_vector.push_back(closing_V2_par_total);
-        std::cout << "Mean parallel closing_V2 execution time : " << closing_V2_par_mean << " sec" << std::endl;
-        std::cout << "Total parallel closing_V2 execution time : " << closing_V2_par_total << " sec" << std::endl;
     }
 
     std::vector<double> erosion_V1_mean_speedup;
