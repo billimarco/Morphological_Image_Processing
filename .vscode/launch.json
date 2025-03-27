@@ -5,10 +5,10 @@
             "name": "C/C++: g++.exe build and debug active file",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/output/${fileBasenameNoExtension}.exe",
+            "program": "${workspaceFolder}\\output\\${fileBasenameNoExtension}.exe",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/output",
+            "cwd": "${workspaceFolder}\\output",
             "environment": [],
             "externalConsole": false,
             "miDebuggerPath": "C:\\msys64\\ucrt64\\bin\\gdb.exe", // Assicurati che il percorso sia corretto

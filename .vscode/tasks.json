@@ -16,11 +16,11 @@
                 "/c",
                 "xcopy",
                 "/E", "/I", "/Y",
-                "${workspaceFolder}/settings",
-                "${workspaceFolder}/output/settings"
+                "${workspaceFolder}\\settings",
+                "${workspaceFolder}\\output\\settings"
             ],
             "options": {
-                "cwd": "${workspaceFolder}/output"
+                "cwd": "${workspaceFolder}\\output"
             },
             "problemMatcher": [],
             "dependsOn": "Create output folder"
@@ -32,15 +32,15 @@
             "args": [
                 "-fdiagnostics-color=always",
                 "-std=c++17",
-                "-I${workspaceFolder}/include",
+                "-I${workspaceFolder}\\include",
                 "-fopenmp",
                 "-g",
-                "${workspaceFolder}/src/main.cpp",
+                "${workspaceFolder}\\src\\main.cpp",
                 "-o",
-                "${workspaceFolder}/output/${fileBasenameNoExtension}.exe"
+                "${workspaceFolder}\\output\\${fileBasenameNoExtension}.exe"
             ],
             "options": {
-                "cwd": "${workspaceFolder}/output"
+                "cwd": "${workspaceFolder}\\output"
             },
             "problemMatcher": [
                 "$gcc"
