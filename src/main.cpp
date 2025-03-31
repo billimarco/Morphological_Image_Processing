@@ -144,22 +144,17 @@ void createPath(const std::string &path) {
 }
 
 // Funzione per caricare immagini in un vettore
-std::vector<STBImage> loadImages(const std::string &directory, int startIdx, int endIdx) {
+std::vector<STBImage> loadImagesFromDirectory(const std::string& directory) {
     std::vector<STBImage> images;
-
-    for (int i = startIdx; i <= endIdx; i++) {
-        std::string filename = directory + "/image_" + std::to_string(i) + ".jpg";
-        STBImage img;
-
-        // Prova a caricare l'immagine
-        if (img.loadImage(filename)) {
-            images.push_back(std::move(img)); // Sposta l'immagine nel vettore per evitare copie inutili
-            //std::cout << "Immagine caricata: " << filename << " (" << img.width << "x" << img.height << ")" << std::endl;
-        } else {
-            std::cerr << "Errore nel caricamento dell'immagine: " << filename << std::endl;
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+        if (entry.is_regular_file()) {
+            std::string filename = entry.path().string();
+            STBImage img;
+            if (img.loadImage(filename)) {
+                images.push_back(img);
+            }
         }
     }
-
     return images;
 }
 
@@ -491,6 +486,59 @@ STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
 
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
+            bool erode = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                    if (img.image_data[ny * img.width + nx] == 0) {
+                        erode = true;
+                        break;
+                    }
+                }
+            }
+            half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+        }
+    }
+
+    for (int y = 0; y < half_result.height; y++) {
+        for (int x = 0; x < half_result.width; x++) {
+            bool dilate = false;
+            for (const auto& [dy, dx] : active_pixels) {
+                int nx = x + dx;
+                int ny = y + dy;
+                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                    if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                        dilate = true;
+                        break;
+                    }
+                }
+            }
+            result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+        }
+    }
+
+    return result;
+}
+
+// Funzione per eseguire la chiusura ottimizzata (Dilatazione seguita da Erosione)
+STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (int y = 0; y < img.height; y++) {
+        for (int x = 0; x < img.width; x++) {
             bool dilate = false;
             for (const auto& [dy, dx] : active_pixels) {
                 int nx = x + dx;
@@ -526,58 +574,7 @@ STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
     return result;
 }
 
-// Funzione per eseguire la chiusura ottimizzata (Dilatazione seguita da Erosione)
-STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
-    STBImage half_result;
-    STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
 
-    std::vector<std::pair<int, int>> active_pixels;
-    for (int i = 0; i < se.height; i++) {
-        for (int j = 0; j < se.width; j++) {
-            if (se.kernel[i][j] == 1) {
-                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
-            }
-        }
-    }
-
-    for (int y = 0; y < img.height; y++) {
-        for (int x = 0; x < img.width; x++) {
-            bool erode = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                    if (img.image_data[ny * img.width + nx] == 0) {
-                        erode = true;
-                        break;
-                    }
-                }
-            }
-            half_result.image_data[y * img.width + x] = erode ? 0 : 255;
-        }
-    }
-
-    for (int y = 0; y < half_result.height; y++) {
-        for (int x = 0; x < half_result.width; x++) {
-            bool dilate = false;
-            for (const auto& [dy, dx] : active_pixels) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                    if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                        dilate = true;
-                        break;
-                    }
-                }
-            }
-            result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
-        }
-    }
-
-    return result;
-}
 
 // Funzione per eseguire l'erosione ottimizzata per un vettore di immagini
 std::unordered_map<std::string, STBImage> erosion_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
@@ -677,6 +674,62 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<ST
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+            }
+        }
+        imgs_results[img.filename] = result;
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
                     int nx = x + dx;
@@ -712,61 +765,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<ST
     return imgs_results;
 }
 
-// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini (Dilatazione seguita da Erosione)
-std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<STBImage>& imgs, const StructuringElement& se) {
-    std::unordered_map<std::string, STBImage> imgs_results = {};
 
-    std::vector<std::pair<int, int>> active_pixels;
-    for (int i = 0; i < se.height; i++) {
-        for (int j = 0; j < se.width; j++) {
-            if (se.kernel[i][j] == 1) {
-                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
-            }
-        }
-    }
-
-    for (auto &img : imgs) {
-        STBImage half_result;
-        STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
-
-        for (int y = 0; y < img.height; y++) {
-            for (int x = 0; x < img.width; x++) {
-                bool erode = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                        if (img.image_data[ny * img.width + nx] == 0) {
-                            erode = true;
-                            break;
-                        }
-                    }
-                }
-                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
-            }
-        }
-        for (int y = 0; y < half_result.height; y++) {
-            for (int x = 0; x < half_result.width; x++) {
-                bool dilate = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                            dilate = true;
-                            break;
-                        }
-                    }
-                }
-                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
-            }
-        }
-        imgs_results[img.filename] = result;
-    }
-    return imgs_results;
-}
 
 
 
@@ -1240,6 +1239,63 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
         #pragma omp for collapse(2) schedule(static)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
+                bool erode = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                        if (img.image_data[ny * img.width + nx] == 0) {
+                            erode = true;
+                            break;
+                        }
+                    }
+                }
+                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+            }
+        }
+
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < half_result.height; y++) {
+            for (int x = 0; x < half_result.width; x++) {
+                bool dilate = false;
+                for (const auto& [dy, dx] : active_pixels) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                            dilate = true;
+                            break;
+                        }
+                    }
+                }
+                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+            }
+        }
+    }
+    return result;
+}
+
+// Funzione per eseguire la chiusura ottimizzata in parallelo (Dilatazione seguita da Erosione)
+STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) {
+    STBImage half_result;
+    STBImage result;
+    half_result.initialize(img.width, img.height);
+    result.initialize(img.width, img.height);
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+    {
+        #pragma omp for collapse(2) schedule(static)
+        for (int y = 0; y < img.height; y++) {
+            for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
                     int nx = x + dx;
@@ -1277,62 +1333,7 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
     return result;
 }
 
-// Funzione per eseguire la chiusura ottimizzata in parallelo (Dilatazione seguita da Erosione)
-STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) {
-    STBImage half_result;
-    STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
 
-    std::vector<std::pair<int, int>> active_pixels;
-    for (int i = 0; i < se.height; i++) {
-        for (int j = 0; j < se.width; j++) {
-            if (se.kernel[i][j] == 1) {
-                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
-            }
-        }
-    }
-
-    #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
-    {
-        #pragma omp for collapse(2) schedule(static)
-        for (int y = 0; y < img.height; y++) {
-            for (int x = 0; x < img.width; x++) {
-                bool erode = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                        if (img.image_data[ny * img.width + nx] == 0) {
-                            erode = true;
-                            break;
-                        }
-                    }
-                }
-                half_result.image_data[y * img.width + x] = erode ? 0 : 255;
-            }
-        }
-
-        #pragma omp for collapse(2) schedule(static)
-        for (int y = 0; y < half_result.height; y++) {
-            for (int x = 0; x < half_result.width; x++) {
-                bool dilate = false;
-                for (const auto& [dy, dx] : active_pixels) {
-                    int nx = x + dx;
-                    int ny = y + dy;
-                    if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                        if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                            dilate = true;
-                            break;
-                        }
-                    }
-                }
-                result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
-            }
-        }
-    }
-    return result;
-}
 
 // Funzione per eseguire l'erosione ottimizzata per un vettore di immagini in parallelo
 std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
@@ -1442,6 +1443,73 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
         result.initialize(img.width, img.height);
 
         #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
+        {
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < img.height; y++) {
+                for (int x = 0; x < img.width; x++) {
+                    bool erode = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
+                            if (img.image_data[ny * img.width + nx] == 0) {
+                                erode = true;
+                                break;
+                            }
+                        }
+                    }
+                    half_result.image_data[y * img.width + x] = erode ? 0 : 255;
+                }
+            }
+
+            #pragma omp for collapse(2) schedule(static)
+            for (int y = 0; y < half_result.height; y++) {
+                for (int x = 0; x < half_result.width; x++) {
+                    bool dilate = false;
+                    for (const auto& [dy, dx] : active_pixels) {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
+                            if (half_result.image_data[ny * half_result.width + nx] == 255) {
+                                dilate = true;
+                                break;
+                            }
+                        }
+                    }
+                    result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
+                }
+            }
+        }
+
+        #pragma omp critical
+        {
+            imgs_results[img.filename] = result;
+        }
+    }
+    return imgs_results;
+}
+
+// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini in parallelo (Dilatazione seguita da Erosione)
+std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
+    std::unordered_map<std::string, STBImage> imgs_results = {};
+
+    std::vector<std::pair<int, int>> active_pixels;
+    for (int i = 0; i < se.height; i++) {
+        for (int j = 0; j < se.width; j++) {
+            if (se.kernel[i][j] == 1) {
+                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
+            }
+        }
+    }
+
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
+    for (auto &img : imgs) {
+        STBImage half_result;
+        STBImage result;
+        half_result.initialize(img.width, img.height);
+        result.initialize(img.width, img.height);
+
+        #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
         {   
             #pragma omp for collapse(2) schedule(static)
             for (int y = 0; y < img.height; y++) {
@@ -1488,72 +1556,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
     return imgs_results;
 }
 
-// Funzione per eseguire la chiusura ottimizzata per un vettore di immagini in parallelo (Dilatazione seguita da Erosione)
-std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
-    std::unordered_map<std::string, STBImage> imgs_results = {};
 
-    std::vector<std::pair<int, int>> active_pixels;
-    for (int i = 0; i < se.height; i++) {
-        for (int j = 0; j < se.width; j++) {
-            if (se.kernel[i][j] == 1) {
-                active_pixels.emplace_back(i - se.anchor_y, j - se.anchor_x);
-            }
-        }
-    }
-
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
-    for (auto &img : imgs) {
-        STBImage half_result;
-        STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
-
-        #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
-        {
-            #pragma omp for collapse(2) schedule(static)
-            for (int y = 0; y < img.height; y++) {
-                for (int x = 0; x < img.width; x++) {
-                    bool erode = false;
-                    for (const auto& [dy, dx] : active_pixels) {
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (nx >= 0 && nx < img.width && ny >= 0 && ny < img.height) {
-                            if (img.image_data[ny * img.width + nx] == 0) {
-                                erode = true;
-                                break;
-                            }
-                        }
-                    }
-                    half_result.image_data[y * img.width + x] = erode ? 0 : 255;
-                }
-            }
-
-            #pragma omp for collapse(2) schedule(static)
-            for (int y = 0; y < half_result.height; y++) {
-                for (int x = 0; x < half_result.width; x++) {
-                    bool dilate = false;
-                    for (const auto& [dy, dx] : active_pixels) {
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (nx >= 0 && nx < half_result.width && ny >= 0 && ny < half_result.height) {
-                            if (half_result.image_data[ny * half_result.width + nx] == 255) {
-                                dilate = true;
-                                break;
-                            }
-                        }
-                    }
-                    result.image_data[y * half_result.width + x] = dilate ? 255 : 0;
-                }
-            }
-        }
-
-        #pragma omp critical
-        {
-            imgs_results[img.filename] = result;
-        }
-    }
-    return imgs_results;
-}
 
 
 // Funzione per testare le funzioni di morfologia matematica ed ottenere i tempi di esecuzione
@@ -1608,7 +1611,7 @@ void testProcessImages(const std::vector<STBImage>& loadedImages,
         mean_time = sum / test_times.size();
     };
 
-    std::string outputDir = "images/" + operation + "/";
+    std::string outputDir = "images/" + operation + mode +"/";
     double start_time_one_image, end_time_one_image;
     std::vector<double> test_times;
 
@@ -1637,10 +1640,14 @@ int main(){
         std::cout << "_OPENMP defined" << std::endl;
     #endif
     createPath("images/basis");
-    createPath("images/erosion");
-    createPath("images/dilation");
-    createPath("images/opening");
-    createPath("images/closing");
+    createPath("images/erosionV1");
+    createPath("images/dilationV1");
+    createPath("images/openingV1");
+    createPath("images/closingV1");
+    createPath("images/erosionV2");
+    createPath("images/dilationV2");
+    createPath("images/openingV2");
+    createPath("images/closingV2");
 
     std::ifstream conf_file("settings/config.json");
     json config = json::parse(conf_file);
@@ -1650,7 +1657,7 @@ int main(){
     generateBinaryImages(num_images, width, height);
     std::cout << num_images <<" immagini " << width << "x" << height << " generate con successo!" << std::endl;
 
-    std::vector<STBImage> loadedImages = loadImages("images/basis", 1, num_images);
+    std::vector<STBImage> loadedImages = loadImagesFromDirectory("images/basis");
     std::cout << "Totale immagini caricate: " << loadedImages.size() << std::endl;
 
     StructuringElement se;
