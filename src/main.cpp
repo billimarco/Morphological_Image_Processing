@@ -52,7 +52,7 @@ struct STBImage {
     }
 
     // Funzione per inizializzare un'immagine binaria
-    void initialize(int w, int h) {
+    void initializeBinary(int w, int h) {
         width = w;
         height = h;
         channels = 1; // Immagine binaria con 1 canale
@@ -213,7 +213,7 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
 
     for (int i = 1; i <= numImages; i++) {
         STBImage img;
-        img.initialize(width, height);
+        img.initializeBinary(width, height);
 
         int numShapes = rand() % 3 + 1;  // Può generare da 1 a 3 forme
 
@@ -301,7 +301,7 @@ std::vector<std::vector<int>> generateSquareKernel(int halfSideLength) {
 // Funzione per eseguire l'erosione
 STBImage erosion_V1(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
@@ -330,7 +330,7 @@ STBImage erosion_V1(const STBImage& img, const StructuringElement& se) {
 // Funzione per eseguire la dilatazione
 STBImage dilation_V1(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
@@ -405,7 +405,7 @@ std::unordered_map<std::string, STBImage> closing_V1_imgvec(const std::vector<ST
 // Funzione per eseguire l'erosione ottimizzata
 STBImage erosion_V2(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -438,7 +438,7 @@ STBImage erosion_V2(const STBImage& img, const StructuringElement& se) {
 // Funzione per eseguire la dilatazione ottimizzata
 STBImage dilation_V2(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -472,8 +472,8 @@ STBImage dilation_V2(const STBImage& img, const StructuringElement& se) {
 STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -525,8 +525,8 @@ STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
 STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -591,7 +591,7 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec(const std::vector<ST
 
     for (auto &img : imgs) { 
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
@@ -630,7 +630,7 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec(const std::vector<S
 
     for (auto &img : imgs) {
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
@@ -669,8 +669,8 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<ST
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
@@ -725,8 +725,8 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<ST
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
@@ -775,7 +775,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<ST
 // Funzione per eseguire l'erosione in parallelo
 STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
     for (int y = 0; y < img.height; y++) {
@@ -805,7 +805,7 @@ STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) 
 // Funzione per eseguire la dilatazione in parallelo
 STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
     for (int y = 0; y < img.height; y++) {
@@ -836,8 +836,8 @@ STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se)
 STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     #pragma omp parallel shared(result,half_result,img,se) default(none)
     {
@@ -893,8 +893,8 @@ STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) 
 STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     #pragma omp parallel shared(result,half_result,img,se) default(none)
     {
@@ -952,7 +952,7 @@ std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::
     #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se) default(none)
     for (auto &img : imgs) { 
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
         for (int y = 0; y < img.height; y++) {
@@ -989,7 +989,7 @@ std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std:
     std::unordered_map<std::string, STBImage> imgs_results = {};
     for (auto &img : imgs) {
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se) default(none)
         for (int y = 0; y < img.height; y++) {
@@ -1027,8 +1027,8 @@ std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel shared(result,half_result,img,se) default(none)
         {
@@ -1091,8 +1091,8 @@ std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
     
         #pragma omp parallel shared(result,half_result,img,se) default(none)
         {
@@ -1153,7 +1153,7 @@ std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::
 STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage result;
     std::vector<std::pair<int, int>> active_pixels;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     for (int i = 0; i < se.height; i++) {
         for (int j = 0; j < se.width; j++) {
@@ -1187,7 +1187,7 @@ STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) 
 // Funzione per eseguire la dilatazione ottimizzata in parallelo
 STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage result;
-    result.initialize(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -1222,8 +1222,8 @@ STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se)
 STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -1279,8 +1279,8 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
 STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) {
     STBImage half_result;
     STBImage result;
-    half_result.initialize(img.width, img.height);
-    result.initialize(img.width, img.height);
+    half_result.initializeBinary(img.width, img.height);
+    result.initializeBinary(img.width, img.height);
 
     std::vector<std::pair<int, int>> active_pixels;
     for (int i = 0; i < se.height; i++) {
@@ -1351,7 +1351,7 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
     #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) { 
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
         for (int y = 0; y < img.height; y++) {
@@ -1395,7 +1395,7 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
     #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels) default(none)
     for (auto &img : imgs) {
         STBImage result;
-        result.initialize(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
         for (int y = 0; y < img.height; y++) {
@@ -1439,8 +1439,8 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
         {
@@ -1506,8 +1506,8 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
-        half_result.initialize(img.width, img.height);
-        result.initialize(img.width, img.height);
+        half_result.initializeBinary(img.width, img.height);
+        result.initializeBinary(img.width, img.height);
 
         #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
         {   
