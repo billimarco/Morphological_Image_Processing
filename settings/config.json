@@ -4,6 +4,8 @@
         "height": 400
     },
     "num_images": 50,
+    "background_color": 0,
+    "foreground_color": 255,
     "structuring_element": {
         "shape": "circle",
         "radius": 5

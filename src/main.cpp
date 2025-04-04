@@ -26,6 +26,8 @@
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
+std::ifstream conf_file("settings/config.json");
+json config = json::parse(conf_file);
 // change OMP_NUM_THREADS environment variable to run with 1 to X threads...
 // check configuration in drop down menu
 // XXX check working directory so that ./images and ./output are valid !
@@ -52,7 +54,7 @@ struct STBImage {
     }
 
     // Funzione per inizializzare un'immagine binaria
-    void initializeBinary(int w, int h) {
+    void initializeBinary(int w, int h, int color=config["background_color"]) {
         width = w;
         height = h;
         channels = 1; // Immagine binaria con 1 canale
@@ -60,7 +62,7 @@ struct STBImage {
 
         // Inizializza l'immagine a nera (tutti i pixel sono 0)
         for (int i = 0; i < width * height * channels; i++) {
-            image_data[i] = 0;
+            image_data[i] = color; // 0 = nero, 255 = bianco
         }
     }
 };
@@ -159,47 +161,47 @@ std::vector<STBImage> loadImagesFromDirectory(const std::string& directory) {
 }
 
 // Disegna un rettangolo pieno
-void drawRectangle(STBImage &img, int x, int y, int w, int h) {
+void drawRectangle(STBImage &img, int x, int y, int w, int h, int color) {
     for (int i = y; i < y + h; i++)
         for (int j = x; j < x + w; j++)
             if (i >= 0 && i < img.height && j >= 0 && j < img.width)
-                img.image_data[i * img.width + j] = 255;
+                img.image_data[i * img.width + j] = color;
 }
 
 // Disegna una cornice rettangolare (rettangolo con buco)
-void drawHollowRectangle(STBImage &img, int x, int y, int w, int h, int thickness) {
-    drawRectangle(img, x, y, w, thickness);
-    drawRectangle(img, x, y + h - thickness, w, thickness);
-    drawRectangle(img, x, y, thickness, h);
-    drawRectangle(img, x + w - thickness, y, thickness, h);
+void drawHollowRectangle(STBImage &img, int x, int y, int w, int h, int thickness, int color) {
+    drawRectangle(img, x, y, w, thickness, color);
+    drawRectangle(img, x, y + h - thickness, w, thickness, color);
+    drawRectangle(img, x, y, thickness, h, color);
+    drawRectangle(img, x + w - thickness, y, thickness, h, color);
 }
 
 // Disegna un cerchio pieno
-void drawCircle(STBImage &img, int cx, int cy, int radius) {
+void drawCircle(STBImage &img, int cx, int cy, int radius, int color) {
     for (int y = 0; y < img.height; y++)
         for (int x = 0; x < img.width; x++)
             if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= radius * radius)
-                img.image_data[y * img.width + x] = 255;
+                img.image_data[y * img.width + x] = color;
 }
 
 // Disegna un anello (cerchio con buco)
-void drawHollowCircle(STBImage &img, int cx, int cy, int outerRadius, int innerRadius) {
+void drawHollowCircle(STBImage &img, int cx, int cy, int outerRadius, int innerRadius, int color) {
     for (int y = 0; y < img.height; y++)
         for (int x = 0; x < img.width; x++) {
             int distSq = (x - cx) * (x - cx) + (y - cy) * (y - cy);
             if (distSq <= outerRadius * outerRadius && distSq >= innerRadius * innerRadius)
-                img.image_data[y * img.width + x] = 255;
+                img.image_data[y * img.width + x] = color;
         }
 }
 
 // Disegna una linea
-void drawLine(STBImage &img, int x1, int y1, int x2, int y2) {
+void drawLine(STBImage &img, int x1, int y1, int x2, int y2, int color) {
     int dx = abs(x2 - x1), dy = abs(y2 - y1);
     int sx = x1 < x2 ? 1 : -1, sy = y1 < y2 ? 1 : -1, err = dx - dy;
 
     while (true) {
         if (x1 >= 0 && x1 < img.width && y1 >= 0 && y1 < img.height)
-            img.image_data[y1 * img.width + x1] = 255;
+            img.image_data[y1 * img.width + x1] = color;
         if (x1 == x2 && y1 == y2) break;
         int e2 = err * 2;
         if (e2 > -dy) { err -= dy; x1 += sx; }
@@ -210,6 +212,7 @@ void drawLine(STBImage &img, int x1, int y1, int x2, int y2) {
 // Funzione per generare immagini binarie con forme casuali
 void generateBinaryImages(int numImages, int width=256, int height=256) {
     srand(time(0)); // Inizializza il generatore di numeri casuali
+    int color = config["foreground_color"]; // 255 = bianco, 0 = nero
 
     for (int i = 1; i <= numImages; i++) {
         STBImage img;
@@ -225,7 +228,7 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
                 int y = rand() % (img.height - 50);
                 int w = rand() % (img.width - x);
                 int h = rand() % (img.height - y);
-                drawRectangle(img, x, y, w, h);
+                drawRectangle(img, x, y, w, h, color);
             } 
             else if (shapeType == 1) {
                 int x = rand() % (img.width - 100);
@@ -233,27 +236,27 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
                 int w = rand() % 100 + 40;
                 int h = rand() % 100 + 40;
                 int thickness = 10;
-                drawHollowRectangle(img, x, y, w, h, thickness);
+                drawHollowRectangle(img, x, y, w, h, thickness, color);
             } 
             else if (shapeType == 2) {
                 int cx = rand() % (img.width - 50);
                 int cy = rand() % (img.height - 50);
                 int radius = rand() % 50 + 10;
-                drawCircle(img, cx, cy, radius);
+                drawCircle(img, cx, cy, radius, color);
             } 
             else if (shapeType == 3) {
                 int cx = rand() % (img.width - 50);
                 int cy = rand() % (img.height - 50);
                 int outerRadius = rand() % 50 + 30;
                 int innerRadius = rand() % (outerRadius - 10) + 10;
-                drawHollowCircle(img, cx, cy, outerRadius, innerRadius);
+                drawHollowCircle(img, cx, cy, outerRadius, innerRadius, color);
             } 
             else {
                 int x1 = rand() % img.width;
                 int y1 = rand() % img.height;
                 int x2 = rand() % img.width;
                 int y2 = rand() % img.height;
-                drawLine(img, x1, y1, x2, y2);
+                drawLine(img, x1, y1, x2, y2, color);
             }
         }
 
@@ -1648,9 +1651,6 @@ int main(){
     createPath("images/dilationV2");
     createPath("images/openingV2");
     createPath("images/closingV2");
-
-    std::ifstream conf_file("settings/config.json");
-    json config = json::parse(conf_file);
 
     int width = config["image_size"]["width"], height = config["image_size"]["height"], num_images = config["num_images"];
     
