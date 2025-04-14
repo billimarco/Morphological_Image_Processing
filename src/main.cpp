@@ -780,7 +780,7 @@ STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) 
     STBImage result;
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se,config) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool erode = false;
@@ -810,7 +810,7 @@ STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se)
     STBImage result;
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se,config) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool dilate = false;
@@ -844,7 +844,7 @@ STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) 
 
     #pragma omp parallel shared(result,half_result,img,se,config) default(none)
     {
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -866,7 +866,7 @@ STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) 
             }
         }
 
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < half_result.height; y++) {
             for (int x = 0; x < half_result.width; x++) {
                 bool dilate = false;
@@ -901,7 +901,7 @@ STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) 
 
     #pragma omp parallel shared(result,half_result,img,se,config) default(none)
     {
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -923,7 +923,7 @@ STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) 
             }
         }
 
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < half_result.height; y++) {
             for (int x = 0; x < half_result.width; x++) {
                 bool erode = false;
@@ -957,7 +957,7 @@ std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -995,7 +995,7 @@ std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std:
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(static) shared(result,img,se,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1037,7 +1037,7 @@ std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::
 
         #pragma omp parallel shared(result,half_result,img,se,config) default(none)
         {
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
                 for (int x = 0; x < img.width; x++) {
                     bool erode = false;
@@ -1102,7 +1102,7 @@ std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::
     
         #pragma omp parallel shared(result,half_result,img,se,config) default(none)
         {
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
                 for (int x = 0; x < img.width; x++) {
                     bool dilate = false;
@@ -1172,7 +1172,7 @@ STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) 
         }
     }
 
-    #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool erode = false;
@@ -1207,7 +1207,7 @@ STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se)
         }
     }
 
-    #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool dilate = false;
@@ -1245,7 +1245,7 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
 
     #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
     {
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -1302,7 +1302,7 @@ STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) 
 
     #pragma omp parallel shared(result,half_result,active_pixels,img) default(none)
     {
-        #pragma omp for collapse(2) schedule(static)
+        #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1360,7 +1360,7 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,config) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -1404,7 +1404,7 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(static) shared(result,active_pixels,img,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,config) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1451,7 +1451,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
 
         #pragma omp parallel shared(result,half_result,active_pixels,img,config) default(none)
         {
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
                 for (int x = 0; x < img.width; x++) {
                     bool erode = false;
@@ -1469,7 +1469,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
                 }
             }
 
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < half_result.height; y++) {
                 for (int x = 0; x < half_result.width; x++) {
                     bool dilate = false;
@@ -1518,7 +1518,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
 
         #pragma omp parallel shared(result,half_result,active_pixels,img,config) default(none)
         {   
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
                 for (int x = 0; x < img.width; x++) {
                     bool dilate = false;
@@ -1536,7 +1536,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
                 }
             }
 
-            #pragma omp for collapse(2) schedule(static)
+            #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < half_result.height; y++) {
                 for (int x = 0; x < half_result.width; x++) {
                     bool erode = false;
@@ -1730,7 +1730,7 @@ int main(){
     testProcessImages(loadedImages, se, "closing", "V2", closing_V2_seq_mean, closing_V2_seq_total);
 
     //parallel variables
-    std::vector<int> test_thread = {1};
+    std::vector<int> test_thread = {1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30};
     std::vector<double> erosion_V1_par_mean_vector;
     std::vector<double> dilation_V1_par_mean_vector;
     std::vector<double> opening_V1_par_mean_vector;
