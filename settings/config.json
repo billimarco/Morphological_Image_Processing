@@ -4,6 +4,7 @@
         "height": 400
     },
     "num_images": 50,
+    "shape_per_image": 3,
     "background_color": 0,
     "foreground_color": 255,
     "structuring_element": {

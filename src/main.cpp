@@ -26,8 +26,7 @@
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
-std::ifstream conf_file("settings/config.json");
-json config = json::parse(conf_file);
+const json CONFIG = json::parse(std::ifstream("settings/config.json"));
 // change OMP_NUM_THREADS environment variable to run with 1 to X threads...
 // check configuration in drop down menu
 // XXX check working directory so that ./images and ./output are valid !
@@ -54,7 +53,7 @@ struct STBImage {
     }
 
     // Funzione per inizializzare un'immagine binaria
-    void initializeBinary(int w, int h, int color=config["background_color"]) {
+    void initializeBinary(int w, int h, int color=CONFIG["background_color"]) {
         width = w;
         height = h;
         channels = 1; // Immagine binaria con 1 canale
@@ -212,14 +211,13 @@ void drawLine(STBImage &img, int x1, int y1, int x2, int y2, int color) {
 // Funzione per generare immagini binarie con forme casuali
 void generateBinaryImages(int numImages, int width=256, int height=256) {
     srand(time(0)); // Inizializza il generatore di numeri casuali
-    int color = config["foreground_color"]; // 255 = bianco, 0 = nero
+    int color = CONFIG["foreground_color"]; // 255 = bianco, 0 = nero
+    int shape_per_image = CONFIG["shape_per_image"];
+    int numShapes = rand() % shape_per_image + 1;  // Può generare da 1 a 3 forme
 
     for (int i = 1; i <= numImages; i++) {
         STBImage img;
         img.initializeBinary(width, height);
-
-        int numShapes = rand() % 3 + 1;  // Può generare da 1 a 3 forme
-
         for (int j = 0; j < numShapes; j++) {
             int shapeType = rand() % 5; // 0: Rettangolo, 1: Cornice rettangolare, 2: Cerchio, 3: Anello, 4: Linea
 
@@ -780,7 +778,7 @@ STBImage erosion_V1_parallel(const STBImage& img, const StructuringElement& se) 
     STBImage result;
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,CONFIG) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool erode = false;
@@ -810,7 +808,7 @@ STBImage dilation_V1_parallel(const STBImage& img, const StructuringElement& se)
     STBImage result;
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
+    #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,CONFIG) default(none)
     for (int y = 0; y < img.height; y++) {
         for (int x = 0; x < img.width; x++) {
             bool dilate = false;
@@ -842,7 +840,7 @@ STBImage opening_V1_parallel(const STBImage& img, const StructuringElement& se) 
     half_result.initializeBinary(img.width, img.height);
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel shared(result,half_result,img,se,config) default(none)
+    #pragma omp parallel shared(result,half_result,img,se,CONFIG) default(none)
     {
         #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
@@ -899,7 +897,7 @@ STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) 
     half_result.initializeBinary(img.width, img.height);
     result.initializeBinary(img.width, img.height);
 
-    #pragma omp parallel shared(result,half_result,img,se,config) default(none)
+    #pragma omp parallel shared(result,half_result,img,se,CONFIG) default(none)
     {
         #pragma omp for collapse(2) schedule(dynamic)
         for (int y = 0; y < img.height; y++) {
@@ -952,12 +950,12 @@ STBImage closing_V1_parallel(const STBImage& img, const StructuringElement& se) 
 // Funzione per eseguire l'erosione per un vettore di immagini in parallelo
 std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,CONFIG) default(none)
     for (auto &img : imgs) { 
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,CONFIG) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -990,12 +988,12 @@ std::unordered_map<std::string, STBImage> erosion_V1_imgvec_parallel(const std::
 // Funzione per eseguire la dilatazione per un vettore di immagini in parallelo
 std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,img,se,CONFIG) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1028,14 +1026,14 @@ std::unordered_map<std::string, STBImage> dilation_V1_imgvec_parallel(const std:
 // Funzione per eseguire l'apertura per un vettore di immagini in parallelo (Erosione seguita da Dilatazione)
 std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initializeBinary(img.width, img.height);
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel shared(result,half_result,img,se,config) default(none)
+        #pragma omp parallel shared(result,half_result,img,se,CONFIG) default(none)
         {
             #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
@@ -1093,14 +1091,14 @@ std::unordered_map<std::string, STBImage> opening_V1_imgvec_parallel(const std::
 // Funzione per eseguire la chiusura per un vettore di immagini in parallelo (Dilatazione seguita da Erosione)
 std::unordered_map<std::string, STBImage> closing_V1_imgvec_parallel(const std::vector<STBImage>& imgs, const StructuringElement& se) {
     std::unordered_map<std::string, STBImage> imgs_results = {};
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,se,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initializeBinary(img.width, img.height);
         result.initializeBinary(img.width, img.height);
     
-        #pragma omp parallel shared(result,half_result,img,se,config) default(none)
+        #pragma omp parallel shared(result,half_result,img,se,CONFIG) default(none)
         {
             #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
@@ -1355,12 +1353,12 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
         }
     }
 
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,CONFIG) default(none)
     for (auto &img : imgs) { 
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,CONFIG) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool erode = false;
@@ -1399,12 +1397,12 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
         }
     }
 
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage result;
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,config) default(none)
+        #pragma omp parallel for collapse(2) schedule(dynamic) shared(result,active_pixels,img,CONFIG) default(none)
         for (int y = 0; y < img.height; y++) {
             for (int x = 0; x < img.width; x++) {
                 bool dilate = false;
@@ -1442,14 +1440,14 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
         }
     }
 
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initializeBinary(img.width, img.height);
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel shared(result,half_result,active_pixels,img,config) default(none)
+        #pragma omp parallel shared(result,half_result,active_pixels,img,CONFIG) default(none)
         {
             #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
@@ -1509,14 +1507,14 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
         }
     }
 
-    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,config) default(none)
+    #pragma omp parallel for schedule(dynamic) shared(imgs_results,imgs,active_pixels,CONFIG) default(none)
     for (auto &img : imgs) {
         STBImage half_result;
         STBImage result;
         half_result.initializeBinary(img.width, img.height);
         result.initializeBinary(img.width, img.height);
 
-        #pragma omp parallel shared(result,half_result,active_pixels,img,config) default(none)
+        #pragma omp parallel shared(result,half_result,active_pixels,img,CONFIG) default(none)
         {   
             #pragma omp for collapse(2) schedule(dynamic)
             for (int y = 0; y < img.height; y++) {
@@ -1642,6 +1640,12 @@ void testProcessImages(const std::vector<STBImage>& loadedImages,
     std::cout << "Total " << mode << " " << operation << " execution time: " << total_time << " sec" << std::endl;
 }
 
+std::string format_double(double value, int precision = 3) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(precision) << value;
+    return stream.str();
+}
+
 int main(){
     #ifdef _OPENMP
         std::cout << "_OPENMP defined" << std::endl;
@@ -1656,7 +1660,7 @@ int main(){
     createPath("images/openingV2");
     createPath("images/closingV2");
 
-    int width = config["image_size"]["width"], height = config["image_size"]["height"], num_images = config["num_images"];
+    int width = CONFIG["image_size"]["width"], height = CONFIG["image_size"]["height"], num_images = CONFIG["num_images"];
     
     generateBinaryImages(num_images, width, height);
     std::cout << num_images <<" immagini " << width << "x" << height << " generate con successo!" << std::endl;
@@ -1665,12 +1669,12 @@ int main(){
     std::cout << "Totale immagini caricate: " << loadedImages.size() << std::endl;
 
     StructuringElement se;
-    if(config["structuring_element"]["shape"] == "square"){
-        se.setKernel(generateSquareKernel(config["structuring_element"]["radius"]));
+    if(CONFIG["structuring_element"]["shape"] == "square"){
+        se.setKernel(generateSquareKernel(CONFIG["structuring_element"]["radius"]));
         se.print();
         se.saveImage("se.jpg");
-    } else if(config["structuring_element"]["shape"] == "circle"){
-        se.setKernel(generateCircularKernel(config["structuring_element"]["radius"]));
+    } else if(CONFIG["structuring_element"]["shape"] == "circle"){
+        se.setKernel(generateCircularKernel(CONFIG["structuring_element"]["radius"]));
         se.print();
         se.saveImage("se.jpg");
     } else {
@@ -1852,96 +1856,102 @@ int main(){
     logfile << "\n=== Speedup Table V1 ===\n" << std::endl;
 
     std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(10) << "E_Mean"
-            << std::setw(10) << "D_Mean"
-            << std::setw(10) << "O_Mean"
-            << std::setw(10) << "C_Mean"
-            << std::setw(10) << "E_Total"
-            << std::setw(10) << "D_Total"
-            << std::setw(10) << "O_Total"
-            << std::setw(10) << "C_Total" << std::endl;
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
 
     logfile << std::left << std::setw(10) << "Threads"
-            << std::setw(10) << "E_Mean"
-            << std::setw(10) << "D_Mean"
-            << std::setw(10) << "O_Mean"
-            << std::setw(10) << "C_Mean"
-            << std::setw(10) << "E_Total"
-            << std::setw(10) << "D_Total"
-            << std::setw(10) << "O_Total"
-            << std::setw(10) << "C_Total" << std::endl;
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
 
     for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(2)
+        std::cout << std::fixed << std::setprecision(3)
                 << std::left << std::setw(10) << test_thread[i]
-                << std::setw(10) << erosion_V1_mean_speedup[i]
-                << std::setw(10) << dilation_V1_mean_speedup[i]
-                << std::setw(10) << opening_V1_mean_speedup[i]
-                << std::setw(10) << closing_V1_mean_speedup[i]
-                << std::setw(10) << erosion_V1_total_speedup[i]
-                << std::setw(10) << dilation_V1_total_speedup[i]
-                << std::setw(10) << opening_V1_total_speedup[i]
-                << std::setw(10) << closing_V1_total_speedup[i] << std::endl;
-
-        logfile << std::fixed << std::setprecision(2)
+                << std::setw(25) << (format_double(erosion_V1_mean_speedup[i]) + " [" + format_double(erosion_V1_seq_mean) + "/" + format_double(erosion_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V1_mean_speedup[i]) + " [" + format_double(dilation_V1_seq_mean) + "/" + format_double(dilation_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V1_mean_speedup[i]) + " [" + format_double(opening_V1_seq_mean) + "/" + format_double(opening_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V1_mean_speedup[i]) + " [" + format_double(closing_V1_seq_mean) + "/" + format_double(closing_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(erosion_V1_total_speedup[i]) + " [" + format_double(erosion_V1_seq_total) + "/" + format_double(erosion_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V1_total_speedup[i]) + " [" + format_double(dilation_V1_seq_total) + "/" + format_double(dilation_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V1_total_speedup[i]) + " [" + format_double(opening_V1_seq_total) + "/" + format_double(opening_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V1_total_speedup[i]) + " [" + format_double(closing_V1_seq_total) + "/" + format_double(closing_V1_par_total_vector[i]) + "]s")
+                << std::endl;
+    
+        logfile << std::fixed << std::setprecision(3)
                 << std::left << std::setw(10) << test_thread[i]
-                << std::setw(10) << erosion_V1_mean_speedup[i]
-                << std::setw(10) << dilation_V1_mean_speedup[i]
-                << std::setw(10) << opening_V1_mean_speedup[i]
-                << std::setw(10) << closing_V1_mean_speedup[i]
-                << std::setw(10) << erosion_V1_total_speedup[i]
-                << std::setw(10) << dilation_V1_total_speedup[i]
-                << std::setw(10) << opening_V1_total_speedup[i]
-                << std::setw(10) << closing_V1_total_speedup[i] << std::endl;
+                << std::setw(25) << (format_double(erosion_V1_mean_speedup[i]) + " [" + format_double(erosion_V1_seq_mean) + "/" + format_double(erosion_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V1_mean_speedup[i]) + " [" + format_double(dilation_V1_seq_mean) + "/" + format_double(dilation_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V1_mean_speedup[i]) + " [" + format_double(opening_V1_seq_mean) + "/" + format_double(opening_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V1_mean_speedup[i]) + " [" + format_double(closing_V1_seq_mean) + "/" + format_double(closing_V1_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(erosion_V1_total_speedup[i]) + " [" + format_double(erosion_V1_seq_total) + "/" + format_double(erosion_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V1_total_speedup[i]) + " [" + format_double(dilation_V1_seq_total) + "/" + format_double(dilation_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V1_total_speedup[i]) + " [" + format_double(opening_V1_seq_total) + "/" + format_double(opening_V1_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V1_total_speedup[i]) + " [" + format_double(closing_V1_seq_total) + "/" + format_double(closing_V1_par_total_vector[i]) + "]s")
+                << std::endl;
     }
+            
 
     // Tabella per V2
     std::cout << "\n=== Speedup Table V2 ===\n" << std::endl;
     logfile << "\n=== Speedup Table V2 ===\n" << std::endl;
 
     std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(10) << "E_Mean"
-            << std::setw(10) << "D_Mean"
-            << std::setw(10) << "O_Mean"
-            << std::setw(10) << "C_Mean"
-            << std::setw(10) << "E_Total"
-            << std::setw(10) << "D_Total"
-            << std::setw(10) << "O_Total"
-            << std::setw(10) << "C_Total" << std::endl;
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
 
     logfile << std::left << std::setw(10) << "Threads"
-            << std::setw(10) << "E_Mean"
-            << std::setw(10) << "D_Mean"
-            << std::setw(10) << "O_Mean"
-            << std::setw(10) << "C_Mean"
-            << std::setw(10) << "E_Total"
-            << std::setw(10) << "D_Total"
-            << std::setw(10) << "O_Total"
-            << std::setw(10) << "C_Total" << std::endl;
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
 
     for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(2)
+        std::cout << std::fixed << std::setprecision(3)
                 << std::left << std::setw(10) << test_thread[i]
-                << std::setw(10) << erosion_V2_mean_speedup[i]
-                << std::setw(10) << dilation_V2_mean_speedup[i]
-                << std::setw(10) << opening_V2_mean_speedup[i]
-                << std::setw(10) << closing_V2_mean_speedup[i]
-                << std::setw(10) << erosion_V2_total_speedup[i]
-                << std::setw(10) << dilation_V2_total_speedup[i]
-                << std::setw(10) << opening_V2_total_speedup[i]
-                << std::setw(10) << closing_V2_total_speedup[i] << std::endl;
-
-        logfile << std::fixed << std::setprecision(2)
+                << std::setw(25) << (format_double(erosion_V2_mean_speedup[i]) + " [" + format_double(erosion_V2_seq_mean) + "/" + format_double(erosion_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V2_mean_speedup[i]) + " [" + format_double(dilation_V2_seq_mean) + "/" + format_double(dilation_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V2_mean_speedup[i]) + " [" + format_double(opening_V2_seq_mean) + "/" + format_double(opening_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V2_mean_speedup[i]) + " [" + format_double(closing_V2_seq_mean) + "/" + format_double(closing_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(erosion_V2_total_speedup[i]) + " [" + format_double(erosion_V2_seq_total) + "/" + format_double(erosion_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V2_total_speedup[i]) + " [" + format_double(dilation_V2_seq_total) + "/" + format_double(dilation_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V2_total_speedup[i]) + " [" + format_double(opening_V2_seq_total) + "/" + format_double(opening_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V2_total_speedup[i]) + " [" + format_double(closing_V2_seq_total) + "/" + format_double(closing_V2_par_total_vector[i]) + "]s")
+                << std::endl;
+    
+        logfile << std::fixed << std::setprecision(3)
                 << std::left << std::setw(10) << test_thread[i]
-                << std::setw(10) << erosion_V2_mean_speedup[i]
-                << std::setw(10) << dilation_V2_mean_speedup[i]
-                << std::setw(10) << opening_V2_mean_speedup[i]
-                << std::setw(10) << closing_V2_mean_speedup[i]
-                << std::setw(10) << erosion_V2_total_speedup[i]
-                << std::setw(10) << dilation_V2_total_speedup[i]
-                << std::setw(10) << opening_V2_total_speedup[i]
-                << std::setw(10) << closing_V2_total_speedup[i] << std::endl;
+                << std::setw(25) << (format_double(erosion_V2_mean_speedup[i]) + " [" + format_double(erosion_V2_seq_mean) + "/" + format_double(erosion_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V2_mean_speedup[i]) + " [" + format_double(dilation_V2_seq_mean) + "/" + format_double(dilation_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V2_mean_speedup[i]) + " [" + format_double(opening_V2_seq_mean) + "/" + format_double(opening_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V2_mean_speedup[i]) + " [" + format_double(closing_V2_seq_mean) + "/" + format_double(closing_V2_par_mean_vector[i]) + "]s")
+                << std::setw(25) << (format_double(erosion_V2_total_speedup[i]) + " [" + format_double(erosion_V2_seq_total) + "/" + format_double(erosion_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(dilation_V2_total_speedup[i]) + " [" + format_double(dilation_V2_seq_total) + "/" + format_double(dilation_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(opening_V2_total_speedup[i]) + " [" + format_double(opening_V2_seq_total) + "/" + format_double(opening_V2_par_total_vector[i]) + "]s")
+                << std::setw(25) << (format_double(closing_V2_total_speedup[i]) + " [" + format_double(closing_V2_seq_total) + "/" + format_double(closing_V2_par_total_vector[i]) + "]s")
+                << std::endl;
     }
+            
     /*
     std::cout << "\n=== Speedup Table ===\n" << std::endl;
     logfile << "\n=== Speedup Table ===\n" << std::endl;
