@@ -7,6 +7,7 @@
     "shape_per_image": 3,
     "background_color": 0,
     "foreground_color": 255,
+    "tile_size": 64,
     "structuring_element": {
         "shape": "circle",
         "radius": 5
