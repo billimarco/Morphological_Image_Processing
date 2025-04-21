@@ -9,7 +9,7 @@
     "foreground_color": 255,
     "tile_size": 64,
     "structuring_element": {
-        "shape": "circle",
+        "shape": "disk",
         "radius": 5
     }
 }

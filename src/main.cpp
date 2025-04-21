@@ -338,32 +338,25 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
     }
 }
 
-// Funzione per generare un elemento strutturante circolare
-std::vector<std::vector<int>> generateCircularKernel(int radius) {
-    int size = 2 * radius + 1;  // La dimensione della matrice che rappresenta il kernel
+// Funzione per generare un elemento strutturante
+std::vector<std::vector<int>> generateStructuringElement(const std::string& shape, int radius) {
+    int size = 2 * radius + 1;
     std::vector<std::vector<int>> kernel(size, std::vector<int>(size, 0));
 
     for (int i = -radius; i <= radius; ++i) {
         for (int j = -radius; j <= radius; ++j) {
-            // Calcolare la distanza dal centro (0, 0) con Teorema di Pitagora
-            if (i * i + j * j <= radius * radius) {
+            if (shape == "disk") {
+                // Cerchio: distanza euclidea
+                if (i * i + j * j <= radius * radius) {
+                    kernel[i + radius][j + radius] = 1;
+                }
+            } else if (shape == "square") {
+                // Quadrato: tutto il blocco
                 kernel[i + radius][j + radius] = 1;
             }
         }
     }
-    return kernel;
-}
 
-// Funzione per generare un elemento strutturante quadrato
-std::vector<std::vector<int>> generateSquareKernel(int halfSideLength) {
-    int fullSide = 2 * halfSideLength + 1;
-    std::vector<std::vector<int>> kernel(fullSide, std::vector<int>(fullSide, 0));
-
-    for (int i = -halfSideLength; i <= halfSideLength; ++i) {
-        for (int j = -halfSideLength; j <= halfSideLength; ++j) {
-            kernel[i + halfSideLength][j + halfSideLength] = 1;
-        }
-    }
     return kernel;
 }
 
@@ -488,6 +481,7 @@ STBImage erosion_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool erode = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (erode) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 0) {
@@ -518,6 +512,7 @@ STBImage dilation_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool dilate = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (dilate) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 255) {
@@ -550,6 +545,7 @@ STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool erode = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (erode) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 0) {
@@ -564,6 +560,7 @@ STBImage opening_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
             bool dilate = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (dilate) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -597,6 +594,7 @@ STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool dilate = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (dilate) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 255) {
@@ -611,6 +609,7 @@ STBImage closing_V2(const STBImage& img, const StructuringElement& se) {
         for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
             bool erode = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (erode) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -645,6 +644,7 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec(const std::vector<ST
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 0) {
@@ -681,6 +681,7 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec(const std::vector<S
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 255) {
@@ -718,6 +719,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<ST
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 0) {
@@ -731,6 +733,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec(const std::vector<ST
             for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -768,6 +771,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<ST
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 255) {
@@ -781,6 +785,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec(const std::vector<ST
             for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -816,6 +821,7 @@ STBImage erosion_V3(const STBImage& img, const StructuringElement& se, const int
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 0) {
@@ -850,6 +856,7 @@ STBImage dilation_V3(const STBImage& img, const StructuringElement& se, const in
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 255) {
@@ -886,6 +893,7 @@ STBImage opening_V3(const STBImage& img, const StructuringElement& se, const int
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 0) {
@@ -905,6 +913,7 @@ STBImage opening_V3(const STBImage& img, const StructuringElement& se, const int
                 for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -942,6 +951,7 @@ STBImage closing_V3(const STBImage& img, const StructuringElement& se, const int
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 255) {
@@ -961,6 +971,7 @@ STBImage closing_V3(const STBImage& img, const StructuringElement& se, const int
                 for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -998,6 +1009,7 @@ std::unordered_map<std::string, STBImage> erosion_V3_imgvec(const std::vector<ST
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 0) {
@@ -1037,6 +1049,7 @@ std::unordered_map<std::string, STBImage> dilation_V3_imgvec(const std::vector<S
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 255) {
@@ -1079,6 +1092,7 @@ std::unordered_map<std::string, STBImage> opening_V3_imgvec(const std::vector<ST
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 0) {
@@ -1097,6 +1111,7 @@ std::unordered_map<std::string, STBImage> opening_V3_imgvec(const std::vector<ST
                     for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -1138,6 +1153,7 @@ std::unordered_map<std::string, STBImage> closing_V3_imgvec(const std::vector<ST
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 255) {
@@ -1157,6 +1173,7 @@ std::unordered_map<std::string, STBImage> closing_V3_imgvec(const std::vector<ST
                     for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                        bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -1525,6 +1542,7 @@ STBImage erosion_V2_parallel(const STBImage& img, const StructuringElement& se) 
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool erode = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (erode) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 0) {
@@ -1557,6 +1575,7 @@ STBImage dilation_V2_parallel(const STBImage& img, const StructuringElement& se)
         for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
             bool dilate = false;
             for (const auto& [dy, dx] : active_pixels) {
+                if (dilate) continue;
                 int nx = x + dx;
                 int ny = y + dy;
                 if (img.image_data[ny * img.width + nx] == 255) {
@@ -1592,6 +1611,7 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 0) {
@@ -1607,6 +1627,7 @@ STBImage opening_V2_parallel(const STBImage& img, const StructuringElement& se) 
             for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -1643,6 +1664,7 @@ STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) 
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 255) {
@@ -1658,6 +1680,7 @@ STBImage closing_V2_parallel(const STBImage& img, const StructuringElement& se) 
             for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -1695,6 +1718,7 @@ std::unordered_map<std::string, STBImage> erosion_V2_imgvec_parallel(const std::
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool erode = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (erode) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 0) {
@@ -1736,6 +1760,7 @@ std::unordered_map<std::string, STBImage> dilation_V2_imgvec_parallel(const std:
             for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                 bool dilate = false;
                 for (const auto& [dy, dx] : active_pixels) {
+                    if (dilate) continue;
                     int nx = x + dx;
                     int ny = y + dy;
                     if (img.image_data[ny * img.width + nx] == 255) {
@@ -1781,6 +1806,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
                 for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 0) {
@@ -1796,6 +1822,7 @@ std::unordered_map<std::string, STBImage> opening_V2_imgvec_parallel(const std::
                 for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -1842,6 +1869,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
                 for (int x = se.anchor_x; x < img.width - se.anchor_x; x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 255) {
@@ -1857,6 +1885,7 @@ std::unordered_map<std::string, STBImage> closing_V2_imgvec_parallel(const std::
                 for (int x = se.anchor_x; x < half_result.width - se.anchor_x; x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -1897,6 +1926,7 @@ STBImage erosion_V3_parallel(const STBImage& img, const StructuringElement& se, 
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool erode = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (erode) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 0) {
@@ -1933,6 +1963,7 @@ STBImage dilation_V3_parallel(const STBImage& img, const StructuringElement& se,
                 for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                     bool dilate = false;
                     for (const auto& [dy, dx] : active_pixels) {
+                        if (dilate) continue;
                         int nx = x + dx;
                         int ny = y + dy;
                         if (img.image_data[ny * img.width + nx] == 255) {
@@ -1973,6 +2004,7 @@ STBImage opening_V3_parallel(const STBImage& img, const StructuringElement& se, 
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 0) {
@@ -1993,6 +2025,7 @@ STBImage opening_V3_parallel(const STBImage& img, const StructuringElement& se, 
                     for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -2036,6 +2069,7 @@ STBImage closing_V3_parallel(const STBImage& img, const StructuringElement& se, 
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 255) {
@@ -2056,6 +2090,7 @@ STBImage closing_V3_parallel(const STBImage& img, const StructuringElement& se, 
                     for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                         bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -2097,6 +2132,7 @@ std::unordered_map<std::string, STBImage> erosion_V3_imgvec_parallel(const std::
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool erode = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (erode) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 0) {
@@ -2141,6 +2177,7 @@ std::unordered_map<std::string, STBImage> dilation_V3_imgvec_parallel(const std:
                     for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                         bool dilate = false;
                         for (const auto& [dy, dx] : active_pixels) {
+                            if (dilate) continue;
                             int nx = x + dx;
                             int ny = y + dy;
                             if (img.image_data[ny * img.width + nx] == 255) {
@@ -2190,6 +2227,7 @@ std::unordered_map<std::string, STBImage> opening_V3_imgvec_parallel(const std::
                         for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                             bool erode = false;
                             for (const auto& [dy, dx] : active_pixels) {
+                                if (erode) continue;
                                 int nx = x + dx;
                                 int ny = y + dy;
                                 if (img.image_data[ny * img.width + nx] == 0) {
@@ -2209,6 +2247,7 @@ std::unordered_map<std::string, STBImage> opening_V3_imgvec_parallel(const std::
                         for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                             bool dilate = false;
                             for (const auto& [dy, dx] : active_pixels) {
+                                if (dilate) continue;
                                 int nx = x + dx;
                                 int ny = y + dy;
                                 if (half_result.image_data[ny * half_result.width + nx] == 255) {
@@ -2259,6 +2298,7 @@ std::unordered_map<std::string, STBImage> closing_V3_imgvec_parallel(const std::
                         for (int x = tx; x < std::min(tx + tile_size, img.width - se.anchor_x); x++) {
                             bool dilate = false;
                             for (const auto& [dy, dx] : active_pixels) {
+                                if (dilate) continue;
                                 int nx = x + dx;
                                 int ny = y + dy;
                                 if (img.image_data[ny * img.width + nx] == 255) {
@@ -2278,6 +2318,7 @@ std::unordered_map<std::string, STBImage> closing_V3_imgvec_parallel(const std::
                         for (int x = tx; x < std::min(tx + tile_size, half_result.width - se.anchor_x); x++) {
                             bool erode = false;
                             for (const auto& [dy, dx] : active_pixels) {
+                                if (erode) continue;
                                 int nx = x + dx;
                                 int ny = y + dy;
                                 if (half_result.image_data[ny * half_result.width + nx] == 0) {
@@ -2404,6 +2445,136 @@ std::string format_double(double value, int precision = 4) {
     return stream.str();
 }
 
+void write_results_for_version(
+    const std::string& version, 
+    const std::vector<int>& test_thread, 
+    const std::vector<double>& erosion_mean_speedup,
+    const std::vector<double>& dilation_mean_speedup,
+    const std::vector<double>& opening_mean_speedup,
+    const std::vector<double>& closing_mean_speedup,
+    const std::vector<double>& erosion_total_speedup,
+    const std::vector<double>& dilation_total_speedup,
+    const std::vector<double>& opening_total_speedup,
+    const std::vector<double>& closing_total_speedup,
+    double erosion_seq_mean, double dilation_seq_mean,
+    double opening_seq_mean, double closing_seq_mean,
+    double erosion_seq_total, double dilation_seq_total,
+    double opening_seq_total, double closing_seq_total,
+    const std::vector<double>& erosion_par_mean_vector,
+    const std::vector<double>& dilation_par_mean_vector,
+    const std::vector<double>& opening_par_mean_vector,
+    const std::vector<double>& closing_par_mean_vector,
+    const std::vector<double>& erosion_par_total_vector,
+    const std::vector<double>& dilation_par_total_vector,
+    const std::vector<double>& opening_par_total_vector,
+    const std::vector<double>& closing_par_total_vector) 
+{
+    int width = CONFIG["image_size"]["width"], height = CONFIG["image_size"]["height"];
+    std::string se_shape = CONFIG["structuring_element"]["shape"];
+    int se_radius = CONFIG["structuring_element"]["radius"];
+
+    std::string filePath = "results/" + std::to_string(width) + "x" + std::to_string(height) + "_" + se_shape + std::to_string(se_radius)+ "/";
+    createPath(filePath);
+
+    // Nomi file CSV
+    std::string csv_speedup_filename = filePath + "csv_speedup_" + version + "_" + std::to_string(width) + "x" + std::to_string(height) + "_" + se_shape + std::to_string(se_radius) + ".csv";
+    std::string csv_times_filename = filePath + "csv_times_" + version + "_" + std::to_string(width) + "x" + std::to_string(height) + "_" + se_shape + std::to_string(se_radius) + ".csv";
+
+    // Apertura file CSV
+    std::ofstream csv_speedup(csv_speedup_filename);
+    std::ofstream csv_times(csv_times_filename);
+
+    // Header CSV
+    csv_speedup << "Threads,E_Mean,D_Mean,O_Mean,C_Mean,E_Total,D_Total,O_Total,C_Total\n";
+    csv_times << "Threads,E_Seq,E_Par,D_Seq,D_Par,O_Seq,O_Par,C_Seq,C_Par,E_Total_Seq,E_Total_Par,D_Total_Seq,D_Total_Par,O_Total_Seq,O_Total_Par,C_Total_Seq,C_Total_Par\n";
+
+    // Stampa console/log file
+    std::cout << "\n=== Speedup Table " << version << " ===\n" << std::endl;
+    std::ofstream logfile(filePath + "log_" + version + "_" + std::to_string(width) + "x" + std::to_string(height) + "_" + se_shape + std::to_string(se_radius) + ".txt", std::ofstream::trunc);
+    logfile << "\n=== Speedup Table " << version << " ===\n" << std::endl;
+
+    std::cout << std::left << std::setw(10) << "Threads"
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
+
+    logfile << std::left << std::setw(10) << "Threads"
+            << std::setw(25) << "E_Mean"
+            << std::setw(25) << "D_Mean"
+            << std::setw(25) << "O_Mean"
+            << std::setw(25) << "C_Mean"
+            << std::setw(25) << "E_Total"
+            << std::setw(25) << "D_Total"
+            << std::setw(25) << "O_Total"
+            << std::setw(25) << "C_Total" << std::endl;
+
+    // Scrittura dati
+    for (int i = 0; i < test_thread.size(); i++) {
+        // Scrittura speedup
+        csv_speedup << test_thread[i] << ","
+                    << format_double(erosion_mean_speedup[i]) << ","
+                    << format_double(dilation_mean_speedup[i]) << ","
+                    << format_double(opening_mean_speedup[i]) << ","
+                    << format_double(closing_mean_speedup[i]) << ","
+                    << format_double(erosion_total_speedup[i]) << ","
+                    << format_double(dilation_total_speedup[i]) << ","
+                    << format_double(opening_total_speedup[i]) << ","
+                    << format_double(closing_total_speedup[i]) << "\n";
+
+        // Scrittura tempi
+        csv_times << test_thread[i] << ","
+                  << format_double(erosion_seq_mean) << ","
+                  << format_double(erosion_par_mean_vector[i]) << ","
+                  << format_double(dilation_seq_mean) << ","
+                  << format_double(dilation_par_mean_vector[i]) << ","
+                  << format_double(opening_seq_mean) << ","
+                  << format_double(opening_par_mean_vector[i]) << ","
+                  << format_double(closing_seq_mean) << ","
+                  << format_double(closing_par_mean_vector[i]) << ","
+                  << format_double(erosion_seq_total) << ","
+                  << format_double(erosion_par_total_vector[i]) << ","
+                  << format_double(dilation_seq_total) << ","
+                  << format_double(dilation_par_total_vector[i]) << ","
+                  << format_double(opening_seq_total) << ","
+                  << format_double(opening_par_total_vector[i]) << ","
+                  << format_double(closing_seq_total) << ","
+                  << format_double(closing_par_total_vector[i]) << "\n";
+        
+        std::cout << std::left << std::setw(10) << test_thread[i]
+                  << std::setw(25) << format_double(erosion_mean_speedup[i])
+                  << std::setw(25) << format_double(dilation_mean_speedup[i])
+                  << std::setw(25) << format_double(opening_mean_speedup[i])
+                  << std::setw(25) << format_double(closing_mean_speedup[i])
+                  << std::setw(25) << format_double(erosion_total_speedup[i])
+                  << std::setw(25) << format_double(dilation_total_speedup[i])
+                  << std::setw(25) << format_double(opening_total_speedup[i])
+                  << std::setw(25) << format_double(closing_total_speedup[i])
+                  << "\n";
+        
+        logfile << std::left << std::setw(10) << test_thread[i]
+                << std::setw(25) << format_double(erosion_mean_speedup[i])
+                << std::setw(25) << format_double(dilation_mean_speedup[i])
+                << std::setw(25) << format_double(opening_mean_speedup[i])
+                << std::setw(25) << format_double(closing_mean_speedup[i])
+                << std::setw(25) << format_double(erosion_total_speedup[i])
+                << std::setw(25) << format_double(dilation_total_speedup[i])
+                << std::setw(25) << format_double(opening_total_speedup[i])
+                << std::setw(25) << format_double(closing_total_speedup[i])
+                << "\n";
+    }
+
+    // Chiudi i file
+    csv_speedup.close();
+    csv_times.close();
+    logfile.close();
+}
+
+
 int main(){
     #ifdef _OPENMP
         std::cout << "_OPENMP defined" << std::endl;
@@ -2434,12 +2605,8 @@ int main(){
     int se_radius = CONFIG["structuring_element"]["radius"];
 
     StructuringElement se;
-    if(se_shape == "square"){
-        se.setKernel(generateSquareKernel(se_radius));
-        se.print();
-        se.saveImage("se.jpg");
-    } else if(se_shape == "circle"){
-        se.setKernel(generateCircularKernel(se_radius));
+    if(se_shape == "square" || se_shape == "disk"){
+        se.setKernel(generateStructuringElement(se_shape, se_radius));
         se.print();
         se.saveImage("se.jpg");
     } else {
@@ -2661,260 +2828,33 @@ int main(){
         opening_V3_total_speedup.push_back(opening_V3_seq_total / opening_V3_par_total_vector[i]);
         closing_V3_total_speedup.push_back(closing_V3_seq_total / closing_V3_par_total_vector[i]);
     }
+
+    write_results_for_version(
+        "V1", test_thread,
+        erosion_V1_mean_speedup, dilation_V1_mean_speedup, opening_V1_mean_speedup, closing_V1_mean_speedup,
+        erosion_V1_total_speedup, dilation_V1_total_speedup, opening_V1_total_speedup, closing_V1_total_speedup,
+        erosion_V1_seq_mean, dilation_V1_seq_mean, opening_V1_seq_mean, closing_V1_seq_mean,
+        erosion_V1_seq_total, dilation_V1_seq_total, opening_V1_seq_total, closing_V1_seq_total,
+        erosion_V1_par_mean_vector, dilation_V1_par_mean_vector, opening_V1_par_mean_vector, closing_V1_par_mean_vector,
+        erosion_V1_par_total_vector, dilation_V1_par_total_vector, opening_V1_par_total_vector, closing_V1_par_total_vector);
     
-    std::string filename = "speedup_log_" + std::to_string(width) + "x" + std::to_string(height) + "_" + se_shape + std::to_string(se_radius) + ".txt";
-    std::ofstream logfile(filename, std::ofstream::trunc);
-    //std::ofstream csvfile("speedup_results.csv", std::ofstream::trunc);
+    write_results_for_version(
+        "V2", test_thread,
+        erosion_V2_mean_speedup, dilation_V2_mean_speedup, opening_V2_mean_speedup, closing_V2_mean_speedup,
+        erosion_V2_total_speedup, dilation_V2_total_speedup, opening_V2_total_speedup, closing_V2_total_speedup,
+        erosion_V2_seq_mean, dilation_V2_seq_mean, opening_V2_seq_mean, closing_V2_seq_mean,
+        erosion_V2_seq_total, dilation_V2_seq_total, opening_V2_seq_total, closing_V2_seq_total,
+        erosion_V2_par_mean_vector, dilation_V2_par_mean_vector, opening_V2_par_mean_vector, closing_V2_par_mean_vector,
+        erosion_V2_par_total_vector, dilation_V2_par_total_vector, opening_V2_par_total_vector, closing_V2_par_total_vector);
 
-    // Tabella per V1
-    std::cout << "\n=== Speedup Table V1 ===\n" << std::endl;
-    logfile << "\n=== Speedup Table V1 ===\n" << std::endl;
-
-    std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    logfile << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V1_mean_speedup[i]) + " [" + format_double(erosion_V1_seq_mean) + "/" + format_double(erosion_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V1_mean_speedup[i]) + " [" + format_double(dilation_V1_seq_mean) + "/" + format_double(dilation_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V1_mean_speedup[i]) + " [" + format_double(opening_V1_seq_mean) + "/" + format_double(opening_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V1_mean_speedup[i]) + " [" + format_double(closing_V1_seq_mean) + "/" + format_double(closing_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V1_total_speedup[i]) + " [" + format_double(erosion_V1_seq_total) + "/" + format_double(erosion_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V1_total_speedup[i]) + " [" + format_double(dilation_V1_seq_total) + "/" + format_double(dilation_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V1_total_speedup[i]) + " [" + format_double(opening_V1_seq_total) + "/" + format_double(opening_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V1_total_speedup[i]) + " [" + format_double(closing_V1_seq_total) + "/" + format_double(closing_V1_par_total_vector[i]) + "]s")
-                << std::endl;
-    
-        logfile << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V1_mean_speedup[i]) + " [" + format_double(erosion_V1_seq_mean) + "/" + format_double(erosion_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V1_mean_speedup[i]) + " [" + format_double(dilation_V1_seq_mean) + "/" + format_double(dilation_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V1_mean_speedup[i]) + " [" + format_double(opening_V1_seq_mean) + "/" + format_double(opening_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V1_mean_speedup[i]) + " [" + format_double(closing_V1_seq_mean) + "/" + format_double(closing_V1_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V1_total_speedup[i]) + " [" + format_double(erosion_V1_seq_total) + "/" + format_double(erosion_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V1_total_speedup[i]) + " [" + format_double(dilation_V1_seq_total) + "/" + format_double(dilation_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V1_total_speedup[i]) + " [" + format_double(opening_V1_seq_total) + "/" + format_double(opening_V1_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V1_total_speedup[i]) + " [" + format_double(closing_V1_seq_total) + "/" + format_double(closing_V1_par_total_vector[i]) + "]s")
-                << std::endl;
-    }
-            
-
-    // Tabella per V2
-    std::cout << "\n=== Speedup Table V2 ===\n" << std::endl;
-    logfile << "\n=== Speedup Table V2 ===\n" << std::endl;
-
-    std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    logfile << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V2_mean_speedup[i]) + " [" + format_double(erosion_V2_seq_mean) + "/" + format_double(erosion_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V2_mean_speedup[i]) + " [" + format_double(dilation_V2_seq_mean) + "/" + format_double(dilation_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V2_mean_speedup[i]) + " [" + format_double(opening_V2_seq_mean) + "/" + format_double(opening_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V2_mean_speedup[i]) + " [" + format_double(closing_V2_seq_mean) + "/" + format_double(closing_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V2_total_speedup[i]) + " [" + format_double(erosion_V2_seq_total) + "/" + format_double(erosion_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V2_total_speedup[i]) + " [" + format_double(dilation_V2_seq_total) + "/" + format_double(dilation_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V2_total_speedup[i]) + " [" + format_double(opening_V2_seq_total) + "/" + format_double(opening_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V2_total_speedup[i]) + " [" + format_double(closing_V2_seq_total) + "/" + format_double(closing_V2_par_total_vector[i]) + "]s")
-                << std::endl;
-    
-        logfile << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V2_mean_speedup[i]) + " [" + format_double(erosion_V2_seq_mean) + "/" + format_double(erosion_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V2_mean_speedup[i]) + " [" + format_double(dilation_V2_seq_mean) + "/" + format_double(dilation_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V2_mean_speedup[i]) + " [" + format_double(opening_V2_seq_mean) + "/" + format_double(opening_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V2_mean_speedup[i]) + " [" + format_double(closing_V2_seq_mean) + "/" + format_double(closing_V2_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V2_total_speedup[i]) + " [" + format_double(erosion_V2_seq_total) + "/" + format_double(erosion_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V2_total_speedup[i]) + " [" + format_double(dilation_V2_seq_total) + "/" + format_double(dilation_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V2_total_speedup[i]) + " [" + format_double(opening_V2_seq_total) + "/" + format_double(opening_V2_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V2_total_speedup[i]) + " [" + format_double(closing_V2_seq_total) + "/" + format_double(closing_V2_par_total_vector[i]) + "]s")
-                << std::endl;
-    }
-
-    // Tabella per V3
-    std::cout << "\n=== Speedup Table V3 ===\n" << std::endl;
-    logfile << "\n=== Speedup Table V3 ===\n" << std::endl;
-
-    std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    logfile << std::left << std::setw(10) << "Threads"
-            << std::setw(25) << "E_Mean"
-            << std::setw(25) << "D_Mean"
-            << std::setw(25) << "O_Mean"
-            << std::setw(25) << "C_Mean"
-            << std::setw(25) << "E_Total"
-            << std::setw(25) << "D_Total"
-            << std::setw(25) << "O_Total"
-            << std::setw(25) << "C_Total" << std::endl;
-
-    for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V3_mean_speedup[i]) + " [" + format_double(erosion_V3_seq_mean) + "/" + format_double(erosion_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V3_mean_speedup[i]) + " [" + format_double(dilation_V3_seq_mean) + "/" + format_double(dilation_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V3_mean_speedup[i]) + " [" + format_double(opening_V3_seq_mean) + "/" + format_double(opening_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V3_mean_speedup[i]) + " [" + format_double(closing_V3_seq_mean) + "/" + format_double(closing_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V3_total_speedup[i]) + " [" + format_double(erosion_V3_seq_total) + "/" + format_double(erosion_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V3_total_speedup[i]) + " [" + format_double(dilation_V3_seq_total) + "/" + format_double(dilation_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V3_total_speedup[i]) + " [" + format_double(opening_V3_seq_total) + "/" + format_double(opening_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V3_total_speedup[i]) + " [" + format_double(closing_V3_seq_total) + "/" + format_double(closing_V3_par_total_vector[i]) + "]s")
-                << std::endl;
-    
-        logfile << std::fixed << std::setprecision(3)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(25) << (format_double(erosion_V3_mean_speedup[i]) + " [" + format_double(erosion_V3_seq_mean) + "/" + format_double(erosion_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V3_mean_speedup[i]) + " [" + format_double(dilation_V3_seq_mean) + "/" + format_double(dilation_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V3_mean_speedup[i]) + " [" + format_double(opening_V3_seq_mean) + "/" + format_double(opening_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V3_mean_speedup[i]) + " [" + format_double(closing_V3_seq_mean) + "/" + format_double(closing_V3_par_mean_vector[i]) + "]s")
-                << std::setw(25) << (format_double(erosion_V3_total_speedup[i]) + " [" + format_double(erosion_V3_seq_total) + "/" + format_double(erosion_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(dilation_V3_total_speedup[i]) + " [" + format_double(dilation_V3_seq_total) + "/" + format_double(dilation_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(opening_V3_total_speedup[i]) + " [" + format_double(opening_V3_seq_total) + "/" + format_double(opening_V3_par_total_vector[i]) + "]s")
-                << std::setw(25) << (format_double(closing_V3_total_speedup[i]) + " [" + format_double(closing_V3_seq_total) + "/" + format_double(closing_V3_par_total_vector[i]) + "]s")
-                << std::endl;
-    }
-            
-            
-    /*
-    std::cout << "\n=== Speedup Table ===\n" << std::endl;
-    logfile << "\n=== Speedup Table ===\n" << std::endl;
-
-    std::cout << std::left << std::setw(10) << "Threads"
-            << std::setw(10) << "E_Mean"
-            << std::setw(10) << "D_Mean"
-            << std::setw(10) << "O_Mean"
-            << std::setw(10) << "C_Mean"
-            << std::setw(10) << "E_Total"
-            << std::setw(10) << "D_Total"
-            << std::setw(10) << "O_Total"
-            << std::setw(10) << "C_Total" << std::endl;
-
-    if (logfile.is_open()) {
-        logfile << std::left << std::setw(10) << "Threads"
-                << std::setw(10) << "E_Mean"
-                << std::setw(10) << "D_Mean"
-                << std::setw(10) << "O_Mean"
-                << std::setw(10) << "C_Mean"
-                << std::setw(10) << "E_Total"
-                << std::setw(10) << "D_Total"
-                << std::setw(10) << "O_Total"
-                << std::setw(10) << "C_Total" << std::endl;
-    } else {
-        std::cerr << "Error opening the log file!" << std::endl;
-    }
-
-    if (csvfile.is_open()) {
-        csvfile << "Threads,E_Mean,D_Mean,O_Mean,C_Mean,E_Total,D_Total,O_Total,C_Total\n";
-    } else {
-        std::cerr << "Error opening the CSV file!" << std::endl;
-    }
-
-    for (int i = 0; i < test_thread.size(); i++) {
-        std::cout << std::fixed << std::setprecision(2)
-                << std::left << std::setw(10) << test_thread[i]
-                << std::setw(10) << erosion_mean_speedup[i]
-                << std::setw(10) << dilation_mean_speedup[i]
-                << std::setw(10) << opening_mean_speedup[i]
-                << std::setw(10) << closing_mean_speedup[i]
-                << std::setw(10) << erosion_total_speedup[i]
-                << std::setw(10) << dilation_total_speedup[i]
-                << std::setw(10) << opening_total_speedup[i]
-                << std::setw(10) << closing_total_speedup[i] << std::endl;
-
-        if (logfile.is_open()) {
-            logfile << std::fixed << std::setprecision(2)
-                    << std::left << std::setw(10) << test_thread[i]
-                    << std::setw(10) << erosion_mean_speedup[i]
-                    << std::setw(10) << dilation_mean_speedup[i]
-                    << std::setw(10) << opening_mean_speedup[i]
-                    << std::setw(10) << closing_mean_speedup[i]
-                    << std::setw(10) << erosion_total_speedup[i]
-                    << std::setw(10) << dilation_total_speedup[i]
-                    << std::setw(10) << opening_total_speedup[i]
-                    << std::setw(10) << closing_total_speedup[i] << std::endl;
-        }
-
-        if (csvfile.is_open()) {
-            csvfile << test_thread[i] << ","
-                    << std::fixed << std::setprecision(2) << erosion_mean_speedup[i] << ","
-                    << dilation_mean_speedup[i] << ","
-                    << opening_mean_speedup[i] << ","
-                    << closing_mean_speedup[i] << ","
-                    << erosion_total_speedup[i] << ","
-                    << dilation_total_speedup[i] << ","
-                    << opening_total_speedup[i] << ","
-                    << closing_total_speedup[i] << "\n";
-        }
-    }
-
-    std::cout << "\nLegend:\n"
-            << "E_Mean  - Erosion Mean Speedup\n"
-            << "D_Mean  - Dilation Mean Speedup\n"
-            << "O_Mean  - Opening Mean Speedup\n"
-            << "C_Mean  - Closing Mean Speedup\n"
-            << "E_Total - Erosion Total Speedup\n"
-            << "D_Total - Dilation Total Speedup\n"
-            << "O_Total - Opening Total Speedup\n"
-            << "C_Total - Closing Total Speedup\n";
-
-    if (logfile.is_open()) {
-        logfile << "\nLegend:\n"
-                << "E_Mean  - Erosion Mean Speedup\n"
-                << "D_Mean  - Dilation Mean Speedup\n"
-                << "O_Mean  - Opening Mean Speedup\n"
-                << "C_Mean  - Closing Mean Speedup\n"
-                << "E_Total - Erosion Total Speedup\n"
-                << "D_Total - Dilation Total Speedup\n"
-                << "O_Total - Opening Total Speedup\n"
-                << "C_Total - Closing Total Speedup\n";
-    }
-
-    logfile.close();
-    csvfile.close();
-    */
-    logfile.close();
+    write_results_for_version(
+        "V3", test_thread,
+        erosion_V3_mean_speedup, dilation_V3_mean_speedup, opening_V3_mean_speedup, closing_V3_mean_speedup,
+        erosion_V3_total_speedup, dilation_V3_total_speedup, opening_V3_total_speedup, closing_V3_total_speedup,
+        erosion_V3_seq_mean, dilation_V3_seq_mean, opening_V3_seq_mean, closing_V3_seq_mean,
+        erosion_V3_seq_total, dilation_V3_seq_total, opening_V3_seq_total, closing_V3_seq_total,
+        erosion_V3_par_mean_vector, dilation_V3_par_mean_vector, opening_V3_par_mean_vector, closing_V3_par_mean_vector,
+        erosion_V3_par_total_vector, dilation_V3_par_total_vector, opening_V3_par_total_vector, closing_V3_par_total_vector);
+         
     return 0;
 }
