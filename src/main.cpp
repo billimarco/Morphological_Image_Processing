@@ -289,7 +289,8 @@ void generateBinaryImages(int numImages, int width=256, int height=256) {
     srand(time(0)); // Inizializza il generatore di numeri casuali
     int color = CONFIG["foreground_color"]; // 255 = bianco, 0 = nero
     int shape_per_image = CONFIG["shape_per_image"];
-    int numShapes = rand() % shape_per_image + 1;  // Può generare da 1 a 3 forme
+    std::cout << shape_per_image << std::endl;
+    int numShapes = rand() % (shape_per_image + 1);  // Può generare da 1 a 3 forme
 
     for (int i = 1; i <= numImages; i++) {
         STBImage img;
@@ -2427,7 +2428,6 @@ void testProcessImages(const std::vector<STBImage>& loadedImages,
         STBImage result = operationFunc(img);
         end_time_one_image = omp_get_wtime();
         test_times.push_back(end_time_one_image - start_time_one_image);
-        std::cout << outputDir +filename << std::endl;
         result.saveImage(outputDir + filename);
         result.freeImage();
     }
