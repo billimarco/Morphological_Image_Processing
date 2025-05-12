@@ -48,6 +48,7 @@ struct STBImage {
         width = other.width;
         height = other.height;
         channels = other.channels;
+        filename = other.filename;
         allocated_with_stb = false;
         if (other.image_data) {
             image_data = (uint8_t*)malloc(width * height * channels);
@@ -62,6 +63,7 @@ struct STBImage {
             width = other.width;
             height = other.height;
             channels = other.channels;
+            filename = other.filename;
             allocated_with_stb = false;
             if (other.image_data) {
                 image_data = (uint8_t*)malloc(width * height * channels);
@@ -77,6 +79,7 @@ struct STBImage {
         height = other.height;
         channels = other.channels;
         image_data = other.image_data;
+        filename = other.filename;
         allocated_with_stb = other.allocated_with_stb;
         other.image_data = nullptr;
     }
@@ -2424,7 +2427,8 @@ void testProcessImages(const std::vector<STBImage>& loadedImages,
         STBImage result = operationFunc(img);
         end_time_one_image = omp_get_wtime();
         test_times.push_back(end_time_one_image - start_time_one_image);
-        //result.saveImage(outputDir + filename);
+        std::cout << outputDir +filename << std::endl;
+        result.saveImage(outputDir + filename);
         result.freeImage();
     }
 
